@@ -1,5 +1,0 @@
-This has to be pushed first in private repo first 
-
-then it has to be pushed in team feature branch
-
-then it is finalized and pushed in team main branch
