@@ -13,4 +13,8 @@ dist/
 
 # Ignore system files
 .DS_Store
+<<<<<<< HEAD
 Thumbs.db
+=======
+Thumbs.db
+>>>>>>> upstream/Dev

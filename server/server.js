@@ -1,5 +1,10 @@
+<<<<<<< HEAD
 require('dotenv').config();
 const app = require('./app');
+=======
+require("dotenv").config();
+const app = require("./app");
+>>>>>>> upstream/Dev
 
 const PORT = process.env.PORT || 5000;
 

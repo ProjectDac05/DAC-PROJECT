@@ -18,4 +18,8 @@ const protect = (req, res, next) => {
   }
 };
 
+<<<<<<< HEAD
 module.exports = protect;
+=======
+module.exports = protect;
+>>>>>>> upstream/Dev

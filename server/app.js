@@ -45,4 +45,8 @@ app.use("/api/events", eventRoutes);
 app.use(errorHandler);
 
 // Export app for server.js to use
+<<<<<<< HEAD
 module.exports = app;
+=======
+module.exports = app;
+>>>>>>> upstream/Dev

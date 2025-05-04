@@ -24,11 +24,19 @@ lerna-debug.log*
 .idea/
 .DS_Store
 *.suo
+<<<<<<< HEAD
 .ntvs
+=======
+*.ntvs*
+>>>>>>> upstream/Dev
 *.njsproj
 *.sln
 *.sw?
 
 # Other
 coverage/
+<<<<<<< HEAD
 uploads/
+=======
+uploads/
+>>>>>>> upstream/Dev

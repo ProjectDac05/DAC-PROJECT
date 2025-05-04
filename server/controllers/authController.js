@@ -56,5 +56,10 @@ exports.login = async (req, res, next) => {
   } catch (error) {
     console.error(error.message);
     next(error);
+<<<<<<< HEAD
   }
 };
+=======
+  }
+};
+>>>>>>> upstream/Dev

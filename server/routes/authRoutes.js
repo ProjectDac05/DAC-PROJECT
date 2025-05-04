@@ -16,4 +16,8 @@ router.post("/register", register);
  */
 router.post("/login", login);
 
+<<<<<<< HEAD
 module.exports = router;
+=======
+module.exports = router;
+>>>>>>> upstream/Dev
