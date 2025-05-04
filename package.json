@@ -1,0 +1,38 @@
+{
+  "name": "dac-project",
+  "version": "1.0.0",
+  "description": "<br>\r Update all your work here...\r <br>\r UPDATE DAILY...",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "concurrently \"npm run dev:server\" \"npm run client\"",
+    "dev:server": "cd server && npm run dev",
+    "client": "cd client && npm run dev"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProjectDac05/DacProject-Sanket.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ProjectDac05/DacProject-Sanket/issues"
+  },
+  "homepage": "https://github.com/ProjectDac05/DacProject-Sanket#readme",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.5",
+    "autoprefixer": "^10.4.21",
+    "concurrently": "^7.6.0",
+    "postcss": "^8.5.3",
+    "tailwindcss": "^4.1.5"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^5.1.0",
+    "mysql2": "^3.14.1",
+    "nodemon": "^3.1.10"
+  }
+}

@@ -1,0 +1,34 @@
+# Dependency folders
+node_modules/
+
+# Build output (if any compiled output)
+dist/
+build/
+
+# Local environment files
+.env
+.env.*.local
+
+# Log files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Editor settings
+.vscode/
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Other
+coverage/
+uploads/
