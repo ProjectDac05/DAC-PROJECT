@@ -30,6 +30,14 @@ const Navbar = ({ user, onLogout }) => {
 
             {user ? (
               <>
+                {user.role === "admin" && (
+                  <Link
+                    to="/admin/dashboard"
+                    className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
+                  >
+                    Admin Dashboard
+                  </Link>
+                )}
                 {user.role === "organizer" && (
                   <Link
                     to="/creator/dashboard"
@@ -42,11 +50,17 @@ const Navbar = ({ user, onLogout }) => {
                   to={
                     user.role === "organizer"
                       ? "/creator/events"
+                      : user.role === "admin"
+                      ? "/admin/events"
                       : "/user/bookings"
                   }
                   className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
                 >
-                  {user.role === "organizer" ? "My Events" : "My Bookings"}
+                  {user.role === "organizer"
+                    ? "My Events"
+                    : user.role === "admin"
+                    ? "All Events"
+                    : "My Bookings"}
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -54,9 +68,18 @@ const Navbar = ({ user, onLogout }) => {
                 >
                   Logout
                 </button>
-                <span className="py-4 px-2 text-gray-500">
+                <Link
+                  to={
+                    user.role === "admin"
+                      ? "/admin/dashboard"
+                      : user.role === "organizer"
+                      ? "/creator/dashboard"
+                      : "/user/dashboard"
+                  }
+                  className="py-4 px-2 text-gray-500 hover:text-indigo-500 transition duration-300"
+                >
                   Hi, {user.name.split(" ")[0]}
-                </span>
+                </Link>
               </>
             ) : (
               <>
@@ -109,16 +132,32 @@ const Navbar = ({ user, onLogout }) => {
           </li>
           {user ? (
             <>
+              {user.role === "admin" && (
+                <li>
+                  <Link
+                    to="/admin/dashboard"
+                    className="block text-sm px-2 py-4 hover:bg-indigo-500 transition duration-300"
+                  >
+                    Admin Dashboard
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link
                   to={
                     user.role === "organizer"
                       ? "/creator/events"
+                      : user.role === "admin"
+                      ? "/admin/events"
                       : "/user/bookings"
                   }
                   className="block text-sm px-2 py-4 hover:bg-indigo-500 transition duration-300"
                 >
-                  {user.role === "organizer" ? "My Events" : "My Bookings"}
+                  {user.role === "organizer"
+                    ? "My Events"
+                    : user.role === "admin"
+                    ? "All Events"
+                    : "My Bookings"}
                 </Link>
               </li>
               <li>

@@ -18,6 +18,7 @@ import MyEvents from "./pages/Creator/MyEvents";
 import EventInsightPage from "./pages/Creator/EventInsightPage";
 import EditEventPage from "./pages/Creator/EditEventPage";
 import EventSeatSetupPage from "./pages/Creator/EventSeatSetupPage";
+import AdminDashboard from "./pages/Admin/AdminDashboard";
 
 export default function App() {
   return (
@@ -59,6 +60,11 @@ export default function App() {
                 path="/creator/events/:id/seats"
                 element={<EventSeatSetupPage />}
               />
+            </Route>
+
+            {/* Protected admin routes */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/admin/dashboard" element={<AdminDashboard />} />
             </Route>
 
             {/* 404 Not Found */}

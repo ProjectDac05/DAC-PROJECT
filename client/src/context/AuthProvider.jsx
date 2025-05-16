@@ -10,13 +10,22 @@ export function AuthProvider({ children }) {
     const loadUser = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        if (token) {
+        const storedUser = localStorage.getItem("user");
+
+        if (token && storedUser) {
+          // Set the token in axios defaults
+          api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+          // Try to get user data from API
           const response = await api.get("/auth/me");
           setUser(response.data);
         }
       } catch (error) {
-        console.error("Failed to load user", error);
+        console.error("Failed to load user:", error);
+        // Clear invalid tokens
         localStorage.removeItem("accessToken");
+        localStorage.removeItem("user");
+        api.defaults.headers.common.Authorization = "";
       } finally {
         setLoading(false);
       }
@@ -26,18 +35,34 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (token, userData) => {
-    localStorage.setItem("accessToken", token);
-    setUser(userData);
+    try {
+      // Store token and user data
+      localStorage.setItem("accessToken", token);
+      localStorage.setItem("user", JSON.stringify(userData));
+
+      // Set the token in axios defaults
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      // Set user state
+      setUser(userData);
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {
     try {
       await api.post("/auth/logout");
     } catch (error) {
-      console.error("Logout error", error);
+      console.error("Logout error:", error);
+    } finally {
+      // Clear storage and state
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user");
+      api.defaults.headers.common.Authorization = "";
+      setUser(null);
     }
-    localStorage.removeItem("accessToken");
-    setUser(null);
   };
 
   const value = {
@@ -45,6 +70,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

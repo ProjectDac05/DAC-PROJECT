@@ -3,11 +3,20 @@ export default function SeatMap({ seats, selectedSeats, onSeatSelect }) {
   const groupSeatsByRow = () => {
     const rows = {};
     seats.forEach((seat) => {
-      const row = seat.seat_number.match(/^[A-Za-z]+/)?.[0] || "A";
+      // Extract row letter from seat number (e.g., "A" from "A-01")
+      const row = seat.seat_number.split("-")[0];
       if (!rows[row]) {
         rows[row] = [];
       }
       rows[row].push(seat);
+    });
+    // Sort seats within each row
+    Object.keys(rows).forEach((row) => {
+      rows[row].sort((a, b) => {
+        const aNum = parseInt(a.seat_number.split("-")[1]);
+        const bNum = parseInt(b.seat_number.split("-")[1]);
+        return aNum - bNum;
+      });
     });
     return rows;
   };
@@ -44,14 +53,14 @@ export default function SeatMap({ seats, selectedSeats, onSeatSelect }) {
 
               return (
                 <div
-                  key={seat.seat_id}
+                  key={`${row}-${seat.seat_id}`}
                   className={seatClass}
                   onClick={() => !isBooked && onSeatSelect(seat.seat_id)}
                   title={`${seat.seat_number} - ₹${parseFloat(
                     seat.final_price
                   ).toFixed(2)}`}
                 >
-                  {seat.seat_number.match(/\d+$/)?.[0]}
+                  {seat.seat_number.split("-")[1]}
                 </div>
               );
             })}

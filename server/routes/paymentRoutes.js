@@ -1,28 +1,22 @@
 const express = require("express");
 const router = express.Router();
+const PaymentController = require("../controllers/paymentController");
 const {
-  initiatePayment,
-  verifyPayment,
-  paymentWebhook,
-  getAllPayments,
-} = require("../controllers/paymentController");
-const {
-  authenticate,
-  authorize,
-  roles,
+  protect,
+  isBookingOwnerOrAdmin,
 } = require("../middlewares/authMiddleware");
 
-// Public route for payment gateway callbacks
-router.post("/webhook", paymentWebhook);
+// Protected routes
+router.post("/create-intent", protect, PaymentController.createPaymentIntent);
+router.post("/confirm", protect, PaymentController.confirmPayment);
+router.get(
+  "/:id",
+  protect,
+  isBookingOwnerOrAdmin,
+  PaymentController.getPayment
+);
 
-// User routes
-router.use(authenticate);
-
-router.post("/initiate", initiatePayment);
-router.post("/verify", verifyPayment);
-
-// Admin routes
-router.use(authorize(roles.admin));
-router.get("/", getAllPayments);
+// Webhook (no protection as it's called by payment provider)
+router.post("/webhook", PaymentController.handleWebhook);
 
 module.exports = router;

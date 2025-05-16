@@ -50,6 +50,22 @@ export default function EventDetailsPage() {
   };
 
   const handleBookNow = async () => {
+    // Check if user is logged in
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      // Save current state to localStorage
+      localStorage.setItem(
+        "bookingRedirect",
+        JSON.stringify({
+          eventId: id,
+          selectedSeats,
+        })
+      );
+      // Redirect to login
+      navigate("/login?redirect=/events/" + id);
+      return;
+    }
+
     if (selectedSeats.length === 0) {
       setError("Please select at least one seat");
       return;
@@ -68,7 +84,20 @@ export default function EventDetailsPage() {
       // Redirect to checkout page
       navigate(`/checkout/${bookingResponse.data.bookingId}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create booking");
+      console.error("Booking error:", err.response?.data || err.message);
+      if (err.response?.status === 401) {
+        // Token expired or invalid, redirect to login
+        localStorage.setItem(
+          "bookingRedirect",
+          JSON.stringify({
+            eventId: id,
+            selectedSeats,
+          })
+        );
+        navigate("/login?redirect=/events/" + id);
+      } else {
+        setError(err.response?.data?.message || "Failed to create booking");
+      }
     } finally {
       setBookingLoading(false);
     }
@@ -121,7 +150,8 @@ export default function EventDetailsPage() {
               </div>
 
               <div className="text-sm text-gray-600 mb-4">
-                {event.available_seats} of {event.total_seats} seats available
+                {event.total_seats - event.booked_seats} of {event.total_seats}{" "}
+                seats available
               </div>
               {selectedSeats.length > 0 && (
                 <div className="mb-4">
@@ -129,7 +159,15 @@ export default function EventDetailsPage() {
                     Selected: {selectedSeats.length} seat(s)
                   </p>
                   <p className="text-lg font-bold text-gray-900">
-                    Total: ₹{(event.price * selectedSeats.length).toFixed(2)}
+                    Total: ₹
+                    {selectedSeats
+                      .reduce((total, seatId) => {
+                        const seat = seats.find((s) => s.seat_id === seatId);
+                        return (
+                          total + (seat ? parseFloat(seat.final_price) : 0)
+                        );
+                      }, 0)
+                      .toFixed(2)}
                   </p>
                 </div>
               )}

@@ -1,27 +1,49 @@
+require("dotenv").config(); // Add this at the top
 const mysql = require("mysql2/promise");
-require("dotenv").config();
 
+// Create a connection pool with proper error handling
 const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME,
+  host: process.env.DB_HOST || "localhost",
+  user: process.env.DB_USER || "root",
+  password: process.env.DB_PASSWORD || "", // Make sure this matches your .env
+  database: process.env.DB_NAME || "event_booking_db",
   waitForConnections: true,
   connectionLimit: 10,
+  queueLimit: 0,
+  timezone: "+00:00",
 });
 
-// Check connection immediately
-async function testDBConnection() {
+// Test the connection
+async function testConnection() {
+  let connection;
   try {
-    const connection = await pool.getConnection();
-    console.log("✅ Database connection successful!");
-    connection.release(); // Release back to the pool
-  } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
-    process.exit(1); // Exit process if you want to stop app on DB failure
+    connection = await pool.getConnection();
+    console.log("✅ Connected to MySQL database");
+
+    // Verify database exists
+    const [rows] = await connection.query(
+      `SELECT SCHEMA_NAME FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = ?`,
+      [process.env.DB_NAME || "event_booking_db"]
+    );
+
+    if (rows.length === 0) {
+      console.error(
+        `❌ Database "${process.env.DB_NAME}" not found. Run schema.sql first.`
+      );
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error("❌ Error connecting to MySQL:", err.message);
+    console.log("Please verify:");
+    console.log(`- MySQL server is running`);
+    console.log(`- DB_USER has proper privileges`);
+    console.log(`- .env file has correct credentials`);
+    process.exit(1);
+  } finally {
+    if (connection) connection.release();
   }
 }
 
-testDBConnection();
+testConnection();
 
 module.exports = pool;

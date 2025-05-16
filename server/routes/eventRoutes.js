@@ -1,32 +1,26 @@
 const express = require("express");
 const router = express.Router();
-const {
-  getAllEvents,
-  getEvent,
-  createEvent,
-  updateEvent,
-  deleteEvent,
-  getEventSeats,
-  setupSeats,
-} = require("../controllers/eventController");
-const {
-  authenticate,
-  authorize,
-  roles,
-} = require("../middlewares/authMiddleware");
+const EventController = require("../controllers/eventController");
+const { protect } = require("../middlewares/authMiddleware");
+const upload = require("../utils/multer");
 
-// Public routes
-router.get("/", getAllEvents);
-router.get("/:id", getEvent);
-router.get("/:id/seats", getEventSeats);
+router.get("/", EventController.getAllEvents);
+router.get("/:id", EventController.getEvent);
 
-// Protected routes - Organizer/Admin only
-router.use(authenticate);
-router.use(authorize(roles.organizer, roles.admin));
+// Protected routes
+router.post("/", protect, upload.single("image"), EventController.createEvent);
+router.patch("/:id", protect, EventController.updateEvent);
+router.delete("/:id", protect, EventController.deleteEvent);
 
-router.post("/", createEvent);
-router.put("/:id", updateEvent);
-router.delete("/:id", deleteEvent);
-router.post("/:id/seats", setupSeats);
+// Event seats
+router.get("/:id/seats", EventController.getEventSeats);
+
+// Event images
+router.post(
+  "/:id/images",
+  protect,
+  upload.single("image"),
+  EventController.addEventImage
+);
 
 module.exports = router;
