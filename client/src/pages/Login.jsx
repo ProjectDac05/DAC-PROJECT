@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../context/useAuth";
 import api from "../services/api";
 
 export default function Login() {
@@ -8,6 +9,13 @@ export default function Login() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+  const { login } = useAuth();
+
+  // Get redirect path from location state or URL params
+  const from = location.state?.from?.pathname;
+  const searchParams = new URLSearchParams(location.search);
+  const redirectPath = from || searchParams.get("redirect");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -16,20 +24,30 @@ export default function Login() {
 
     try {
       const response = await api.post("/auth/login", { email, password });
-      const { accessToken, userId, name, role } = response.data;
+      const { token, user } = response.data.data;
 
-      localStorage.setItem("accessToken", accessToken);
-      localStorage.setItem("user", JSON.stringify({ userId, name, role }));
+      // Login using auth context
+      await login(token, user);
 
-      // Redirect based on role
-      if (role === "admin") {
-        navigate("/admin/dashboard");
-      } else if (role === "organizer") {
-        navigate("/creator/dashboard");
-      } else {
-        navigate("/");
+      // Determine redirect path based on role and saved path
+      let targetPath = redirectPath;
+      if (!targetPath) {
+        switch (user.role) {
+          case "admin":
+            targetPath = "/admin/dashboard";
+            break;
+          case "organizer":
+            targetPath = "/creator/dashboard";
+            break;
+          default:
+            targetPath = "/user/dashboard";
+        }
       }
+
+      // Navigate to appropriate dashboard
+      navigate(targetPath, { replace: true });
     } catch (err) {
+      console.error("Login error:", err);
       setError(
         err.response?.data?.message || "Login failed. Please try again."
       );
@@ -45,6 +63,11 @@ export default function Login() {
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
             Sign in to your account
           </h2>
+          {redirectPath && (
+            <p className="mt-2 text-center text-sm text-gray-600">
+              Please sign in to continue
+            </p>
+          )}
         </div>
         {error && (
           <div
@@ -87,32 +110,6 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <input
-                id="remember-me"
-                name="remember-me"
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-              />
-              <label
-                htmlFor="remember-me"
-                className="ml-2 block text-sm text-gray-900"
-              >
-                Remember me
-              </label>
-            </div>
-
-            <div className="text-sm">
-              <Link
-                to="/forgot-password"
-                className="font-medium text-indigo-600 hover:text-indigo-500"
-              >
-                Forgot your password?
-              </Link>
             </div>
           </div>
 

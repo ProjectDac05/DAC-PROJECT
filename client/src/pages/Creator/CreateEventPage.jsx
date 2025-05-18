@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
@@ -14,30 +14,80 @@ export default function CreateEventPage() {
     time: "",
     end_date: "",
     end_time: "",
-    category_id: "",
+    category_id: "1", // Set a default category
+    capacity: 100,
     total_seats: 100,
+    available_seats: 100,
     price: 0,
     image_url: "",
   });
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  useEffect(() => {
+    // Fetch categories when component mounts
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get("/categories");
+        setCategories(response.data.data.categories);
+      } catch (err) {
+        console.error("Failed to fetch categories:", err);
+      }
+    };
+    fetchCategories();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+    if (name === "capacity") {
+      // When capacity changes, update total_seats and available_seats as well
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+        total_seats: value,
+        available_seats: value,
+      }));
+    } else if (name === "category_id") {
+      // Ensure category_id is a number or null
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value === "" ? null : Number(value),
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    setSuccess("");
 
     try {
-      const response = await api.post("/events", formData);
-      navigate(`/creator/events/${response.data.eventId}/seats`);
+      // Prepare the data - ensure category_id is a number or null
+      const submitData = {
+        ...formData,
+        category_id: formData.category_id ? Number(formData.category_id) : null,
+        // Handle empty date fields
+        end_date: formData.end_date || null,
+        end_time: formData.end_time || null,
+      };
+
+      const response = await api.post("/events", submitData);
+      const eventId =
+        response.data.eventId || response.data.data.event.event_id;
+      setSuccess("Event created successfully!");
+
+      // Wait for a short moment to show the success message
+      setTimeout(() => {
+        navigate(`/creator/events/${eventId}/seats`);
+      }, 1500);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create event");
     } finally {
@@ -54,6 +104,12 @@ export default function CreateEventPage() {
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
           {error}
+        </div>
+      )}
+
+      {success && (
+        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-6">
+          {success}
         </div>
       )}
 
@@ -78,6 +134,30 @@ export default function CreateEventPage() {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="category_id"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Category *
+            </label>
+            <select
+              id="category_id"
+              name="category_id"
+              value={formData.category_id || ""}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Select a category</option>
+              {categories.map((category) => (
+                <option key={category.category_id} value={category.category_id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -170,17 +250,17 @@ export default function CreateEventPage() {
 
           <div>
             <label
-              htmlFor="total_seats"
+              htmlFor="capacity"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              Total Seats *
+              Venue Capacity *
             </label>
             <input
               type="number"
-              id="total_seats"
-              name="total_seats"
+              id="capacity"
+              name="capacity"
               min="1"
-              value={formData.total_seats}
+              value={formData.capacity}
               onChange={handleChange}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
@@ -210,23 +290,6 @@ export default function CreateEventPage() {
 
         <div className="mb-6">
           <label
-            htmlFor="short_description"
-            className="block text-sm font-medium text-gray-700 mb-1"
-          >
-            Short Description (optional)
-          </label>
-          <input
-            type="text"
-            id="short_description"
-            name="short_description"
-            value={formData.short_description}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-          />
-        </div>
-
-        <div className="mb-6">
-          <label
             htmlFor="description"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
@@ -239,6 +302,23 @@ export default function CreateEventPage() {
             value={formData.description}
             onChange={handleChange}
             required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+          ></textarea>
+        </div>
+
+        <div className="mb-6">
+          <label
+            htmlFor="short_description"
+            className="block text-sm font-medium text-gray-700 mb-1"
+          >
+            Short Description (optional)
+          </label>
+          <textarea
+            id="short_description"
+            name="short_description"
+            rows="2"
+            value={formData.short_description}
+            onChange={handleChange}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
           ></textarea>
         </div>

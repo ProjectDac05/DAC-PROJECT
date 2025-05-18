@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "./context/AuthProvider";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import Layout from "./components/common/Layout";
+import { Toaster } from "react-hot-toast";
 
 // Pages
 import Home from "./pages/Home";
@@ -18,12 +19,14 @@ import MyEvents from "./pages/Creator/MyEvents";
 import EventInsightPage from "./pages/Creator/EventInsightPage";
 import EditEventPage from "./pages/Creator/EditEventPage";
 import EventSeatSetupPage from "./pages/Creator/EventSeatSetupPage";
+import AdminRoutes from "./pages/Admin/AdminRoutes";
 
 export default function App() {
   return (
     <Router>
       <AuthProvider>
         <Layout>
+          <Toaster position="top-right" />
           <Routes>
             {/* Public routes */}
             <Route path="/" element={<Home />} />
@@ -59,6 +62,11 @@ export default function App() {
                 path="/creator/events/:id/seats"
                 element={<EventSeatSetupPage />}
               />
+            </Route>
+
+            {/* Protected admin routes */}
+            <Route element={<ProtectedRoute allowedRoles={["admin"]} />}>
+              <Route path="/admin/*" element={<AdminRoutes />} />
             </Route>
 
             {/* 404 Not Found */}

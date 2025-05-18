@@ -5,16 +5,21 @@ import api from "../../services/api";
 import SeatMap from "../../components/events/SeatMap";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import ErrorMessage from "../../components/common/ErrorMessage";
+import { toast } from "react-hot-toast";
+import { useAuth } from "../../context/useAuth";
 
 export default function EventDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [event, setEvent] = useState(null);
   const [seats, setSeats] = useState([]);
   const [selectedSeats, setSelectedSeats] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [isInWishlist, setIsInWishlist] = useState(false);
+  const [wishlistLoading, setWishlistLoading] = useState(false);
 
   useEffect(() => {
     const fetchEventData = async () => {
@@ -25,9 +30,35 @@ export default function EventDetailsPage() {
           api.get(`/events/${id}/seats`),
         ]);
 
-        setEvent(eventResponse.data);
-        setSeats(seatsResponse.data);
+        const eventData = eventResponse.data.data.event;
+        const seatsData = seatsResponse.data.data.seats || [];
+
+        // Calculate final price for each seat
+        const seatsWithPrices = seatsData.map((seat) => ({
+          ...seat,
+          final_price: eventData.price * (seat.price_multiplier || 1),
+        }));
+
+        setEvent(eventData);
+        setSeats(seatsWithPrices);
+
+        // Check if event is in user's wishlist
+        if (user) {
+          try {
+            const wishlistResponse = await api.get("/wishlists/user");
+            const wishlist = wishlistResponse.data.data.wishlist || [];
+            setIsInWishlist(
+              wishlist.some((item) => item.event_id === parseInt(id))
+            );
+          } catch (err) {
+            console.error("Error checking wishlist status:", err);
+          }
+        }
+
+        console.log("Event Data:", eventData);
+        console.log("Seats Data:", seatsWithPrices);
       } catch (err) {
+        console.error("Error fetching data:", err);
         setError(
           err.response?.data?.message || "Failed to fetch event details"
         );
@@ -37,7 +68,7 @@ export default function EventDetailsPage() {
     };
 
     fetchEventData();
-  }, [id]);
+  }, [id, user]);
 
   const handleSeatSelect = (seatId) => {
     setSelectedSeats((prev) => {
@@ -49,7 +80,36 @@ export default function EventDetailsPage() {
     });
   };
 
+  const calculateTotalPrice = () => {
+    return selectedSeats.reduce((total, seatId) => {
+      const seat = seats.find((s) => s.seat_id === seatId);
+      return total + (seat ? parseFloat(seat.final_price) || 0 : 0);
+    }, 0);
+  };
+
+  const getAvailableSeats = () => {
+    const totalSeats = seats.length;
+    const bookedSeats = seats.filter((seat) => seat.is_booked).length;
+    return totalSeats - bookedSeats;
+  };
+
   const handleBookNow = async () => {
+    // Check if user is logged in
+    const token = localStorage.getItem("accessToken");
+    if (!token) {
+      // Save current state to localStorage
+      localStorage.setItem(
+        "bookingRedirect",
+        JSON.stringify({
+          eventId: id,
+          selectedSeats,
+        })
+      );
+      // Redirect to login
+      navigate("/login?redirect=/events/" + id);
+      return;
+    }
+
     if (selectedSeats.length === 0) {
       setError("Please select at least one seat");
       return;
@@ -59,18 +119,66 @@ export default function EventDetailsPage() {
       setBookingLoading(true);
       setError("");
 
-      // Create booking
-      const bookingResponse = await api.post("/bookings", {
+      const totalAmount = calculateTotalPrice();
+
+      // Create booking with total amount
+      const response = await api.post("/bookings", {
         event_id: id,
         seat_ids: selectedSeats,
+        total_amount: totalAmount,
       });
 
-      // Redirect to checkout page
-      navigate(`/checkout/${bookingResponse.data.bookingId}`);
+      console.log("Booking response:", response.data);
+
+      // Check if we have a valid booking ID
+      const bookingId = response.data?.data?.booking?.booking_id;
+      if (!bookingId) {
+        throw new Error("No booking ID received from server");
+      }
+
+      // Redirect to checkout page with the booking ID
+      navigate(`/checkout/${bookingId}`);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create booking");
+      console.error("Booking error:", err.response?.data || err.message);
+      if (err.response?.status === 401) {
+        // Token expired or invalid, redirect to login
+        localStorage.setItem(
+          "bookingRedirect",
+          JSON.stringify({
+            eventId: id,
+            selectedSeats,
+          })
+        );
+        navigate("/login?redirect=/events/" + id);
+      } else {
+        setError(err.response?.data?.message || "Failed to create booking");
+      }
     } finally {
       setBookingLoading(false);
+    }
+  };
+
+  const handleWishlist = async () => {
+    if (!user) {
+      navigate("/login?redirect=/events/" + id);
+      return;
+    }
+
+    try {
+      setWishlistLoading(true);
+      if (isInWishlist) {
+        await api.delete(`/wishlists/${id}`);
+        toast.success("Removed from wishlist");
+      } else {
+        await api.post(`/wishlists/${id}`);
+        toast.success("Added to wishlist");
+      }
+      setIsInWishlist(!isInWishlist);
+    } catch (err) {
+      console.error("Error updating wishlist:", err);
+      toast.error(err.response?.data?.message || "Failed to update wishlist");
+    } finally {
+      setWishlistLoading(false);
     }
   };
 
@@ -83,6 +191,9 @@ export default function EventDetailsPage() {
   const formattedDate = isNaN(eventDateTime.getTime())
     ? "Invalid date"
     : format(eventDateTime, "EEEE, MMMM d, yyyy h:mm a");
+
+  const totalPrice = calculateTotalPrice();
+  const availableSeats = getAvailableSeats();
 
   return (
     <div className="container mx-auto px-4 py-8">
@@ -114,14 +225,11 @@ export default function EventDetailsPage() {
 
             <div className="bg-gray-50 p-4 rounded-lg md:w-64">
               <div className="text-xl font-bold text-gray-900 mb-2">
-                ₹
-                {event.price && !isNaN(event.price)
-                  ? parseFloat(event.price).toFixed(2)
-                  : "N/A"}
+                Starting from ₹{parseFloat(event.price).toFixed(2)}
               </div>
 
               <div className="text-sm text-gray-600 mb-4">
-                {event.available_seats} of {event.total_seats} seats available
+                {availableSeats} of {seats.length} seats available
               </div>
               {selectedSeats.length > 0 && (
                 <div className="mb-4">
@@ -129,21 +237,40 @@ export default function EventDetailsPage() {
                     Selected: {selectedSeats.length} seat(s)
                   </p>
                   <p className="text-lg font-bold text-gray-900">
-                    Total: ₹{(event.price * selectedSeats.length).toFixed(2)}
+                    Total: ₹{totalPrice.toFixed(2)}
                   </p>
                 </div>
               )}
-              <button
-                onClick={handleBookNow}
-                disabled={bookingLoading || selectedSeats.length === 0}
-                className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                  bookingLoading || selectedSeats.length === 0
-                    ? "opacity-50 cursor-not-allowed"
-                    : ""
-                }`}
-              >
-                {bookingLoading ? "Processing..." : "Book Now"}
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={handleBookNow}
+                  disabled={bookingLoading || selectedSeats.length === 0}
+                  className={`w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                    bookingLoading || selectedSeats.length === 0
+                      ? "opacity-50 cursor-not-allowed"
+                      : ""
+                  }`}
+                >
+                  {bookingLoading ? "Processing..." : "Book Now"}
+                </button>
+                <button
+                  onClick={handleWishlist}
+                  disabled={wishlistLoading}
+                  className={`w-full py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium ${
+                    isInWishlist
+                      ? "text-red-600 hover:text-red-700 hover:border-red-300"
+                      : "text-gray-700 hover:text-gray-800 hover:border-gray-400"
+                  } bg-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                    wishlistLoading ? "opacity-50 cursor-not-allowed" : ""
+                  }`}
+                >
+                  {wishlistLoading
+                    ? "Processing..."
+                    : isInWishlist
+                    ? "Remove from Wishlist"
+                    : "Add to Wishlist"}
+                </button>
+              </div>
             </div>
           </div>
 

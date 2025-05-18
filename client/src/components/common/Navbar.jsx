@@ -15,7 +15,7 @@ const Navbar = ({ user, onLogout }) => {
           <div className="flex space-x-7">
             <Link to="/" className="flex items-center py-4 px-2">
               <span className="font-semibold text-gray-500 text-lg">
-                EventBooking
+                Event Booking
               </span>
             </Link>
           </div>
@@ -30,6 +30,14 @@ const Navbar = ({ user, onLogout }) => {
 
             {user ? (
               <>
+                {user.role === "admin" && (
+                  <Link
+                    to="/admin/dashboard"
+                    className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
+                  >
+                    Admin Dashboard
+                  </Link>
+                )}
                 {user.role === "organizer" && (
                   <Link
                     to="/creator/dashboard"
@@ -38,15 +46,37 @@ const Navbar = ({ user, onLogout }) => {
                     Creator Dashboard
                   </Link>
                 )}
+                {user.role === "user" && (
+                  <>
+                    <Link
+                      to="/user/dashboard"
+                      className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      to="/user/bookings"
+                      className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
+                    >
+                      My Bookings
+                    </Link>
+                  </>
+                )}
                 <Link
                   to={
                     user.role === "organizer"
                       ? "/creator/events"
-                      : "/user/bookings"
+                      : user.role === "admin"
+                      ? "/admin/events"
+                      : "/user/dashboard"
                   }
                   className="py-4 px-2 text-gray-500 font-semibold hover:text-indigo-500 transition duration-300"
                 >
-                  {user.role === "organizer" ? "My Events" : "My Bookings"}
+                  {user.role === "organizer"
+                    ? "My Events"
+                    : user.role === "admin"
+                    ? "All Events"
+                    : "Dashboard"}
                 </Link>
                 <button
                   onClick={handleLogout}
@@ -54,9 +84,18 @@ const Navbar = ({ user, onLogout }) => {
                 >
                   Logout
                 </button>
-                <span className="py-4 px-2 text-gray-500">
+                <Link
+                  to={
+                    user.role === "admin"
+                      ? "/admin/dashboard"
+                      : user.role === "organizer"
+                      ? "/creator/dashboard"
+                      : "/user/dashboard"
+                  }
+                  className="py-4 px-2 text-gray-500 hover:text-indigo-500 transition duration-300"
+                >
                   Hi, {user.name.split(" ")[0]}
-                </span>
+                </Link>
               </>
             ) : (
               <>
@@ -109,16 +148,32 @@ const Navbar = ({ user, onLogout }) => {
           </li>
           {user ? (
             <>
+              {user.role === "admin" && (
+                <li>
+                  <Link
+                    to="/admin/dashboard"
+                    className="block text-sm px-2 py-4 hover:bg-indigo-500 transition duration-300"
+                  >
+                    Admin Dashboard
+                  </Link>
+                </li>
+              )}
               <li>
                 <Link
                   to={
                     user.role === "organizer"
                       ? "/creator/events"
-                      : "/user/bookings"
+                      : user.role === "admin"
+                      ? "/admin/events"
+                      : "/user/dashboard"
                   }
                   className="block text-sm px-2 py-4 hover:bg-indigo-500 transition duration-300"
                 >
-                  {user.role === "organizer" ? "My Events" : "My Bookings"}
+                  {user.role === "organizer"
+                    ? "My Events"
+                    : user.role === "admin"
+                    ? "All Events"
+                    : "Dashboard"}
                 </Link>
               </li>
               <li>

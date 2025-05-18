@@ -1,140 +1,229 @@
 const db = require("../config/db");
+const AppError = require("../utils/appError");
 
-// @desc    Get all users
-// @route   GET /api/admin/users
-// @access  Private (Admin)
-exports.getAllUsers = async (req, res, next) => {
-  try {
-    // Pagination
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
-    const offset = (page - 1) * limit;
-
-    // Filtering
-    const { role, is_active } = req.query;
-    let whereClauses = [];
-    let params = [];
-
-    if (role) {
-      whereClauses.push("role = ?");
-      params.push(role);
+class AdminController {
+  static async getAllUsers(req, res, next) {
+    try {
+      const [users] = await db.query(
+        "SELECT user_id, name, email, role, created_at FROM users"
+      );
+      res.status(200).json({
+        status: "success",
+        data: { users },
+      });
+    } catch (err) {
+      next(err);
     }
-
-    if (is_active) {
-      whereClauses.push("is_active = ?");
-      params.push(is_active === "true");
-    }
-
-    let whereClause = "";
-    if (whereClauses.length > 0) {
-      whereClause = `WHERE ${whereClauses.join(" AND ")}`;
-    }
-
-    // Get users
-    const [users] = await db.query(
-      `SELECT user_id, name, email, phone, role, is_active, created_at
-       FROM users
-       ${whereClause}
-       ORDER BY created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, limit, offset]
-    );
-
-    // Get total count for pagination
-    const [[{ total }]] = await db.query(
-      `SELECT COUNT(*) AS total 
-       FROM users
-       ${whereClause}`,
-      params
-    );
-
-    res.json({
-      users,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    });
-  } catch (error) {
-    next(error);
   }
-};
 
-// @desc    Update user status
-// @route   PUT /api/admin/users/:id/status
-// @access  Private (Admin)
-exports.updateUserStatus = async (req, res, next) => {
-  try {
-    const { is_active } = req.body;
+  static async getUser(req, res, next) {
+    try {
+      const [user] = await db.query(
+        "SELECT user_id, name, email, role, created_at FROM users WHERE user_id = ?",
+        [req.params.id]
+      );
 
-    if (typeof is_active !== "boolean") {
-      return res.status(400).json({ message: "Invalid status value" });
+      if (!user.length) {
+        return next(new AppError("No user found with that ID", 404));
+      }
+
+      res.status(200).json({
+        status: "success",
+        data: { user: user[0] },
+      });
+    } catch (err) {
+      next(err);
     }
+  }
 
-    const [result] = await db.query(
-      `UPDATE users 
-       SET is_active = ?
-       WHERE user_id = ?`,
-      [is_active, req.params.id]
-    );
+  static async updateUser(req, res, next) {
+    try {
+      const { name, email, role } = req.body;
+      const [result] = await db.query(
+        "UPDATE users SET name = ?, email = ?, role = ? WHERE user_id = ?",
+        [name, email, role, req.params.id]
+      );
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "User not found" });
+      if (result.affectedRows === 0) {
+        return next(new AppError("No user found with that ID", 404));
+      }
+
+      res.status(200).json({
+        status: "success",
+        message: "User updated successfully",
+      });
+    } catch (err) {
+      next(err);
     }
-
-    res.json({
-      message: `User ${is_active ? "activated" : "deactivated"} successfully`,
-    });
-  } catch (error) {
-    next(error);
   }
-};
 
-// @desc    Get system statistics
-// @route   GET /api/admin/stats
-// @access  Private (Admin)
-exports.getSystemStats = async (req, res, next) => {
-  try {
-    // Get counts in parallel
-    const [
-      [{ users_count }],
-      [{ events_count }],
-      [{ bookings_count }],
-      [{ revenue }],
-    ] = await Promise.all([
-      db.query("SELECT COUNT(*) AS users_count FROM users"),
-      db.query("SELECT COUNT(*) AS events_count FROM events"),
-      db.query(
-        "SELECT COUNT(*) AS bookings_count FROM bookings WHERE status = 'confirmed'"
-      ),
-      db.query(
-        "SELECT COALESCE(SUM(amount), 0) AS revenue FROM payments WHERE payment_status = 'captured'"
-      ),
-    ]);
+  static async getAllEvents(req, res, next) {
+    try {
+      const [events] = await db.query(
+        `SELECT 
+          e.*,
+          u.name as organizer_name,
+          COUNT(DISTINCT b.booking_id) as total_bookings
+        FROM events e
+        LEFT JOIN users u ON e.organizer_id = u.user_id
+        LEFT JOIN bookings b ON e.event_id = b.event_id
+        GROUP BY e.event_id
+        ORDER BY e.created_at DESC`
+      );
 
-    // Get recent activities
-    const [recentBookings] = await db.query(
-      `SELECT b.booking_id, b.booking_date, b.total_amount,
-       u.name AS user_name, e.title AS event_title
-       FROM bookings b
-       JOIN users u ON b.user_id = u.user_id
-       JOIN events e ON b.event_id = e.event_id
-       ORDER BY b.booking_date DESC
-       LIMIT 5`
-    );
-
-    res.json({
-      stats: {
-        users_count,
-        events_count,
-        bookings_count,
-        revenue,
-      },
-      recent_bookings: recentBookings,
-    });
-  } catch (error) {
-    next(error);
+      res.status(200).json({
+        status: "success",
+        data: { events },
+      });
+    } catch (err) {
+      next(err);
+    }
   }
-};
+
+  static async toggleEventStatus(req, res, next) {
+    try {
+      const [event] = await db.query(
+        "SELECT is_active FROM events WHERE event_id = ?",
+        [req.params.id]
+      );
+
+      if (!event.length) {
+        return next(new AppError("No event found with that ID", 404));
+      }
+
+      const newStatus = !event[0].is_active;
+
+      await db.query("UPDATE events SET is_active = ? WHERE event_id = ?", [
+        newStatus,
+        req.params.id,
+      ]);
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          is_active: newStatus,
+        },
+        message: `Event ${
+          newStatus ? "activated" : "deactivated"
+        } successfully`,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getAllBookings(req, res, next) {
+    try {
+      const [bookings] = await db.query(
+        `SELECT 
+          b.*,
+          u.name as user_name,
+          e.title as event_title
+        FROM bookings b
+        JOIN users u ON b.user_id = u.user_id
+        JOIN events e ON b.event_id = e.event_id
+        ORDER BY b.booking_date DESC`
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: { bookings },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getEventBookings(req, res, next) {
+    try {
+      const [bookings] = await db.query(
+        `SELECT 
+          b.*,
+          u.name as user_name
+        FROM bookings b
+        JOIN users u ON b.user_id = u.user_id
+        WHERE b.event_id = ?
+        ORDER BY b.booking_date DESC`,
+        [req.params.id]
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: { bookings },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async getDashboardStats(req, res, next) {
+    try {
+      // Get total users count
+      const [usersCount] = await db.query(
+        "SELECT COUNT(*) as count FROM users WHERE role = 'user'"
+      );
+
+      // Get total events count
+      const [eventsCount] = await db.query(
+        "SELECT COUNT(*) as count FROM events"
+      );
+
+      // Get total bookings count
+      const [bookingsCount] = await db.query(
+        "SELECT COUNT(*) as count FROM bookings"
+      );
+
+      // Get total revenue
+      const [revenue] = await db.query(
+        "SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE payment_status = 'captured'"
+      );
+
+      // Get recent bookings
+      const [recentBookings] = await db.query(
+        `SELECT 
+          b.booking_id,
+          b.booking_date,
+          b.status,
+          u.name as user_name,
+          e.title as event_title
+        FROM bookings b
+        JOIN users u ON b.user_id = u.user_id
+        JOIN events e ON b.event_id = e.event_id
+        ORDER BY b.booking_date DESC
+        LIMIT 5`
+      );
+
+      // Get upcoming events
+      const [upcomingEvents] = await db.query(
+        `SELECT 
+          event_id,
+          title,
+          date,
+          location,
+          is_active
+        FROM events
+        WHERE date >= CURDATE()
+        ORDER BY date ASC
+        LIMIT 5`
+      );
+
+      res.status(200).json({
+        status: "success",
+        data: {
+          stats: {
+            usersCount: usersCount[0].count,
+            eventsCount: eventsCount[0].count,
+            bookingsCount: bookingsCount[0].count,
+            totalRevenue: revenue[0].total || 0,
+          },
+          recentBookings,
+          upcomingEvents,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+}
+
+module.exports = AdminController;

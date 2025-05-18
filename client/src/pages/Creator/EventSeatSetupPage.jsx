@@ -15,7 +15,7 @@ export default function EventSeatSetupPage() {
     const fetchEvent = async () => {
       try {
         const response = await api.get(`/events/${id}`);
-        setEvent(response.data);
+        setEvent(response.data.data.event);
       } catch (err) {
         setError(err.response?.data?.message || "Failed to fetch event");
       } finally {
@@ -27,6 +27,8 @@ export default function EventSeatSetupPage() {
   }, [id]);
 
   const generateSeatLayout = () => {
+    if (!event || !event.total_seats) return;
+
     const newSeats = [];
     const rows = Math.ceil(event.total_seats / 10);
 
@@ -81,7 +83,8 @@ export default function EventSeatSetupPage() {
         Setup Seat Layout for {event.title}
       </h1>
       <p className="text-gray-600 mb-6">
-        Total seats: {event.total_seats} | Base price: ₹{event.price.toFixed(2)}
+        Total seats: {event.total_seats} | Base price: ₹
+        {parseFloat(event.price).toFixed(2)}
       </p>
 
       {error && (
@@ -115,7 +118,10 @@ export default function EventSeatSetupPage() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium">{seat.seat_number}</span>
                     <span className="text-sm bg-gray-100 px-2 py-1 rounded">
-                      ₹{(event.price * seat.price_multiplier).toFixed(2)}
+                      ₹
+                      {(
+                        parseFloat(event.price) * seat.price_multiplier
+                      ).toFixed(2)}
                     </span>
                   </div>
                   <div className="flex space-x-2">

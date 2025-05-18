@@ -1,191 +1,119 @@
 USE event_booking_db;
 
+-- Disable foreign key checks temporarily
+SET FOREIGN_KEY_CHECKS = 0;
 
--- Set higher recursion limit for generating seats
-SET SESSION cte_max_recursion_depth = 100000;
+-- Clear existing data
+TRUNCATE TABLE event_images;
+TRUNCATE TABLE payments;
+TRUNCATE TABLE booked_seats;
+TRUNCATE TABLE seats;
+TRUNCATE TABLE bookings;
+TRUNCATE TABLE events;
+TRUNCATE TABLE categories;
+TRUNCATE TABLE refresh_tokens;
+TRUNCATE TABLE users;
 
--- Insert admin and test users (passwords are bcrypt hashed versions of 'password123')
-INSERT INTO users (name, email, password, phone, role) VALUES
-('Admin User', 'admin@eventbook.com', '$2a$12$zX7T6Gx7bUvJ/dQ5V1zZ.eq9XJ9nN7k8TjKd6Y5W3bLdK1V2Z3X4Y', '9876543210', 'admin'),
-('Event Organizer 1', 'organizer1@eventbook.com', '$2a$12$zX7T6Gx7bUvJ/dQ5V1zZ.eq9XJ9nN7k8TjKd6Y5W3bLdK1V2Z3X4Y', '9876543211', 'organizer'),
-('Event Organizer 2', 'organizer2@eventbook.com', '$2a$12$zX7T6Gx7bUvJ/dQ5V1zZ.eq9XJ9nN7k8TjKd6Y5W3bLdK1V2Z3X4Y', '9876543212', 'organizer'),
-('Test User 1', 'user1@eventbook.com', '$2a$12$zX7T6Gx7bUvJ/dQ5V1zZ.eq9XJ9nN7k8TjKd6Y5W3bLdK1V2Z3X4Y', '9876543213', 'user'),
-('Test User 2', 'user2@eventbook.com', '$2a$12$zX7T6Gx7bUvJ/dQ5V1zZ.eq9XJ9nN7k8TjKd6Y5W3bLdK1V2Z3X4Y', '9876543214', 'user');
+-- Re-enable foreign key checks
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- Insert users with proper bcrypt hashes for password 'password123'
+-- Note: All users have the same password for testing purposes
+INSERT INTO users (name, email, password, role, is_active) VALUES
+('Admin User', 'admin@eventbook.com', '$2b$12$/RywEYZAu0etnlhcv58tk.lGAEJmPzHqsYpLfmuuDo/LLt.YnQEQa', 'admin', true),
+('Event Organizer 1', 'organizer1@eventbook.com', '$2b$12$/RywEYZAu0etnlhcv58tk.lGAEJmPzHqsYpLfmuuDo/LLt.YnQEQa', 'organizer', true),
+('Event Organizer 2', 'organizer2@eventbook.com', '$2b$12$/RywEYZAu0etnlhcv58tk.lGAEJmPzHqsYpLfmuuDo/LLt.YnQEQa', 'organizer', true),
+('Regular User 1', 'user1@eventbook.com', '$2b$12$/RywEYZAu0etnlhcv58tk.lGAEJmPzHqsYpLfmuuDo/LLt.YnQEQa', 'user', true),
+('Regular User 2', 'user2@eventbook.com', '$2b$12$/RywEYZAu0etnlhcv58tk.lGAEJmPzHqsYpLfmuuDo/LLt.YnQEQa', 'user', true);
 
 -- Insert event categories
-INSERT INTO categories (name, description, image_url) VALUES
-('Music Concerts', 'Live music performances of all genres', 'https://example.com/images/music.jpg'),
-('Sports Events', 'Professional and amateur sports competitions', 'https://example.com/images/sports.jpg'),
-('Theater & Arts', 'Plays, musicals, and art exhibitions', 'https://example.com/images/theater.jpg'),
-('Conferences', 'Business and technology conferences', 'https://example.com/images/conference.jpg'),
-('Workshops', 'Educational and skill-building workshops', 'https://example.com/images/workshop.jpg');
+INSERT INTO categories (name, description, image_url, is_active) VALUES
+('Music Concerts', 'Live music performances of all genres', 'https://images.unsplash.com/photo-1540039155733-5bb30b53aa14?w=500', TRUE),
+('Sports Events', 'Professional and amateur sports competitions', 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?w=500', TRUE),
+('Theater & Arts', 'Plays, musicals, and art exhibitions', 'https://images.unsplash.com/photo-1507924538820-ede94a04019d?w=500', TRUE),
+('Conferences', 'Business and technology conferences', 'https://images.unsplash.com/photo-1505373877841-8d25f7d46678?w=500', TRUE),
+('Workshops', 'Educational and skill-building workshops', 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500', TRUE);
 
--- Insert sample events
+-- Insert events
 INSERT INTO events (
-  title, description, short_description, location, venue_details, 
-  date, time, end_date, end_time, category_id, 
-  total_seats, available_seats, price, created_by, image_url
+    title, description, short_description, date, time, 
+    end_date, end_time, location, venue_details,
+    capacity, total_seats, available_seats, price, 
+    category_id, organizer_id, image_url
 ) VALUES
-('Annual Music Festival', '3-day music festival featuring top artists', 'Weekend music extravaganza', 'Mumbai Grounds', 'Gate 3, Near Parking Lot', 
- '2023-12-15', '18:00:00', '2023-12-17', '23:00:00', 1, 
- 5000, 5000, 2500.00, 2, 'https://example.com/images/music-fest.jpg'),
+('Summer Music Festival 2024', 
+ 'A 3-day music festival featuring top artists from around the world. Experience the best in pop, rock, and electronic music.',
+ 'Weekend music extravaganza with top artists',
+ '2024-06-15', '16:00:00', '2024-06-17', '23:00:00',
+ 'Mumbai Grounds', 'Gate 3, Near Western Express Highway, Mumbai',
+ 5000, 5000, 5000, 2500.00, 
+ 1, 2, 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=500'),
 
-('IPL Cricket Match', 'Mumbai Indians vs Chennai Super Kings', 'T20 Championship match', 'Wankhede Stadium', 'North Stand', 
- '2023-11-20', '15:30:00', '2023-11-20', '23:00:00', 2, 
- 35000, 35000, 3500.00, 2, 'https://example.com/images/ipl-match.jpg'),
+('IPL Finals 2024',
+ 'Experience the grand finale of Indian Premier League 2024. Watch the top teams battle for the championship.',
+ 'T20 Championship final match',
+ '2024-05-20', '19:30:00', '2024-05-20', '23:30:00',
+ 'Wankhede Stadium', 'North Stand, Marine Drive, Mumbai',
+ 35000, 35000, 35000, 3500.00,
+ 2, 2, 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=500'),
 
-('Broadway Musical', 'The Lion King musical performance', 'Direct from Broadway', 'Delhi Auditorium', 'Balcony seats available', 
- '2023-12-05', '19:00:00', '2023-12-05', '22:30:00', 3, 
- 500, 500, 4500.00, 3, 'https://example.com/images/lion-king.jpg');
+('The Lion King Musical',
+ 'Award-winning Broadway musical with stunning visuals, amazing costumes, and unforgettable music.',
+ 'World-famous Broadway musical',
+ '2024-04-05', '19:00:00', '2024-04-05', '22:30:00',
+ 'Delhi Auditorium', 'Central Delhi Theater District',
+ 500, 500, 500, 4500.00,
+ 3, 3, 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500');
 
--- Generate seats for events with optimized seat_number lengths
-
--- Music Festival (5000 seats)
+-- Insert seats for events
+-- Music Festival VIP Seats (event_id 1)
 INSERT INTO seats (event_id, seat_number, seat_type, price_multiplier)
-WITH RECURSIVE seat_numbers AS (
-  SELECT 1 AS n
-  UNION ALL
-  SELECT n + 1 FROM seat_numbers WHERE n < 5000
-)
-SELECT 
-  1 AS event_id,
-  CONCAT(
-    CASE 
-      WHEN n <= 1000 THEN 'V-'
-      WHEN n <= 3000 THEN 'P-'
-      ELSE 'G-'
-    END, 
-    LPAD(n, 4, '0')
-  ) AS seat_number,
-  CASE 
-    WHEN n <= 1000 THEN 'vip'
-    WHEN n <= 3000 THEN 'premium'
-    ELSE 'regular'
-  END AS seat_type,
-  CASE 
-    WHEN n <= 1000 THEN 2.0
-    WHEN n <= 3000 THEN 1.5
-    ELSE 1.0
-  END AS price_multiplier
-FROM seat_numbers;
+SELECT 1, CONCAT('VIP-', LPAD(num, 3, '0')), 'vip', 2.00
+FROM (SELECT 1 + tens.num + hundreds.num * 10 as num
+      FROM (SELECT 0 as num UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) tens,
+           (SELECT 0 as num UNION SELECT 10 UNION SELECT 20 UNION SELECT 30 UNION SELECT 40 UNION SELECT 50 UNION SELECT 60 UNION SELECT 70 UNION SELECT 80 UNION SELECT 90) hundreds
+      WHERE 1 + tens.num + hundreds.num * 10 <= 100) numbers;
 
--- Cricket Match (35000 seats) - using batch insert approach
-CREATE TEMPORARY TABLE IF NOT EXISTS temp_seats (
-  event_id INT,
-  seat_number VARCHAR(10),
-  seat_type VARCHAR(10),
-  price_multiplier DECIMAL(3,1)
-);
-
--- Insert in batches of 5000 to avoid timeouts
-INSERT INTO temp_seats
-SELECT 
-  2 AS event_id, 
-  CONCAT('ST-', LPAD(n, 5, '0')) AS seat_number,
-  'regular' AS seat_type,
-  1.0 AS price_multiplier
-FROM (
-  SELECT a.N + b.N*10 + c.N*100 + d.N*1000 + e.N*10000 AS n
-  FROM 
-    (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) a,
-    (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) b,
-    (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) c,
-    (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) d,
-    (SELECT 0 AS N UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4) e
-  WHERE a.N + b.N*10 + c.N*100 + d.N*1000 + e.N*10000 BETWEEN 1 AND 35000
-) numbers;
-
+-- IPL Finals Premium Seats (event_id 2)
 INSERT INTO seats (event_id, seat_number, seat_type, price_multiplier)
-SELECT event_id, seat_number, seat_type, price_multiplier FROM temp_seats;
+SELECT 2, CONCAT('P-', LPAD(num, 3, '0')), 'premium', 1.50
+FROM (SELECT 1 + tens.num + hundreds.num * 10 as num
+      FROM (SELECT 0 as num UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) tens,
+           (SELECT 0 as num UNION SELECT 10 UNION SELECT 20 UNION SELECT 30 UNION SELECT 40 UNION SELECT 50 UNION SELECT 60 UNION SELECT 70 UNION SELECT 80 UNION SELECT 90) hundreds
+      WHERE 1 + tens.num + hundreds.num * 10 <= 100) numbers;
 
-DROP TEMPORARY TABLE temp_seats;
-
--- Broadway Musical (500 seats)
+-- Theater Premium Seats (event_id 3)
 INSERT INTO seats (event_id, seat_number, seat_type, price_multiplier)
-WITH RECURSIVE seat_numbers AS (
-  SELECT 1 AS n
-  UNION ALL
-  SELECT n + 1 FROM seat_numbers WHERE n < 500
-)
-SELECT 
-  3 AS event_id,
-  CONCAT(
-    CASE 
-      WHEN n <= 50 THEN 'B-'
-      WHEN n <= 200 THEN 'BC-'
-      ELSE 'S-'
-    END, 
-    LPAD(n, 3, '0')
-  ) AS seat_number,
-  CASE 
-    WHEN n <= 50 THEN 'vip'
-    WHEN n <= 200 THEN 'premium'
-    ELSE 'regular'
-  END AS seat_type,
-  CASE 
-    WHEN n <= 50 THEN 3.0
-    WHEN n <= 200 THEN 1.8
-    ELSE 1.0
-  END AS price_multiplier
-FROM seat_numbers;
+SELECT 3, CONCAT('A-', LPAD(num, 2, '0')), 'premium', 1.50
+FROM (SELECT 1 + tens.num + hundreds.num * 10 as num
+      FROM (SELECT 0 as num UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9) tens,
+           (SELECT 0 as num UNION SELECT 10 UNION SELECT 20 UNION SELECT 30 UNION SELECT 40 UNION SELECT 50) hundreds
+      WHERE 1 + tens.num + hundreds.num * 10 <= 50) numbers;
 
--- Create sample bookings
-INSERT INTO bookings (user_id, event_id, status, total_amount) VALUES
-(4, 1, 'confirmed', 5000.00), -- User1 booked 2 VIP seats for music festival
-(5, 3, 'confirmed', 9000.00); -- User2 booked 2 Box seats for musical
+-- Insert sample bookings
+INSERT INTO bookings (event_id, user_id, status, total_amount) VALUES
+(1, 4, 'confirmed', 10000.00),
+(2, 5, 'confirmed', 7000.00);
 
--- Book seats for these bookings
-INSERT INTO booked_seats (booking_id, seat_id, price_paid) VALUES
--- User1's booking (2 VIP seats)
-(1, 1, 5000.00), -- V-0001
-(1, 2, 5000.00), -- V-0002
+-- Insert booked seats (using first few seats from each event)
+INSERT INTO booked_seats (booking_id, seat_id, price_paid) 
+SELECT b.booking_id, s.seat_id, e.price * s.price_multiplier as price_paid
+FROM bookings b
+JOIN events e ON b.event_id = e.event_id
+JOIN seats s ON e.event_id = s.event_id
+WHERE (b.booking_id = 1 AND s.seat_number IN ('VIP-001', 'VIP-002'))
+   OR (b.booking_id = 2 AND s.seat_number IN ('P-001', 'P-002'));
 
--- User2's booking (2 Box seats)
-(2, 451, 13500.00), -- B-051 (4500 * 3.0)
-(2, 452, 13500.00); -- B-052
-
--- Create payment records
-INSERT INTO payments (
-  booking_id, amount, currency, payment_method, 
-  payment_status, payment_date, transaction_id, receipt_url
-) VALUES
-(1, 5000.00, 'INR', 'razorpay', 'captured', NOW(), CONCAT('pay_', UUID()), CONCAT('https://example.com/receipts/', UUID())),
-(2, 9000.00, 'INR', 'stripe', 'captured', NOW(), CONCAT('ch_', UUID()), CONCAT('https://example.com/receipts/', UUID()));
-
--- Update seat and event availability based on bookings
-UPDATE seats SET is_booked = TRUE WHERE seat_id IN (1, 2, 451, 452);
-
--- Update event 1
-UPDATE events 
-SET available_seats = total_seats - (
-  SELECT COUNT(*) FROM booked_seats 
-  JOIN seats ON booked_seats.seat_id = seats.seat_id 
-  WHERE seats.event_id = 1
-)
-WHERE event_id = 1;
-
--- Update event 2
-UPDATE events 
-SET available_seats = total_seats - (
-  SELECT COUNT(*) FROM booked_seats 
-  JOIN seats ON booked_seats.seat_id = seats.seat_id 
-  WHERE seats.event_id = 2
-)
-WHERE event_id = 2;
-
--- Update event 3
-UPDATE events 
-SET available_seats = total_seats - (
-  SELECT COUNT(*) FROM booked_seats 
-  JOIN seats ON booked_seats.seat_id = seats.seat_id 
-  WHERE seats.event_id = 3
-)
-WHERE event_id = 3;
+-- Insert payments
+INSERT INTO payments (booking_id, amount, payment_method, payment_status, transaction_id) VALUES
+(1, 10000.00, 'razorpay', 'captured', 'pay_test123'),
+(2, 7000.00, 'stripe', 'captured', 'ch_test456');
 
 -- Insert event images
 INSERT INTO event_images (event_id, image_url, is_primary, display_order) VALUES
-(1, 'https://example.com/images/music-fest-1.jpg', TRUE, 1),
-(1, 'https://example.com/images/music-fest-2.jpg', FALSE, 2),
-(2, 'https://example.com/images/ipl-1.jpg', TRUE, 1),
-(3, 'https://example.com/images/lion-king-1.jpg', TRUE, 1),
-(3, 'https://example.com/images/lion-king-2.jpg', FALSE, 2);
+(1, 'https://images.unsplash.com/photo-1470229722913-7c0e2dbbafd3?w=500', TRUE, 1),
+(1, 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?w=500', FALSE, 2),
+(2, 'https://images.unsplash.com/photo-1540747913346-19e32dc3e97e?w=500', TRUE, 1),
+(2, 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=500', FALSE, 2),
+(3, 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500', TRUE, 1),
+(3, 'https://images.unsplash.com/photo-1460723237483-7a6dc9d0b212?w=500', FALSE, 2);

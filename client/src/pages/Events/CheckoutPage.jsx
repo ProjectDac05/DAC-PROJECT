@@ -1,29 +1,48 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import { toast } from "react-hot-toast";
+import { format } from "date-fns";
 
 export default function CheckoutPage() {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const [booking, setBooking] = useState(null);
-  const [payment, setPayment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [processingPayment, setProcessingPayment] = useState(false);
+  const [confirmingBooking, setConfirmingBooking] = useState(false);
 
   useEffect(() => {
     const fetchBookingData = async () => {
-      try {
-        const [bookingResponse, paymentResponse] = await Promise.all([
-          api.get(`/bookings/${bookingId}`),
-          api.get(`/payments?booking_id=${bookingId}`),
-        ]);
+      if (!bookingId) {
+        setError("No booking ID provided");
+        setLoading(false);
+        return;
+      }
 
-        setBooking(bookingResponse.data);
-        setPayment(paymentResponse.data.payments[0] || null);
-      } catch (err) {
+      try {
+        console.log("Fetching data for booking:", bookingId);
+        setLoading(true);
+        setError("");
+
+        const response = await api.get(`/bookings/${bookingId}`);
+        console.log("Full API Response:", response);
+        console.log(
+          "Booking data structure:",
+          JSON.stringify(response.data, null, 2)
+        );
+
+        if (!response.data?.data?.booking) {
+          throw new Error("Invalid booking data received from server");
+        }
+
+        setBooking(response.data.data.booking);
+      } catch (error) {
+        console.error("Error fetching booking data:", error);
         setError(
-          err.response?.data?.message || "Failed to fetch booking details"
+          error.response?.data?.message ||
+            error.message ||
+            "Failed to load booking details. Please try again."
         );
       } finally {
         setLoading(false);
@@ -33,182 +52,151 @@ export default function CheckoutPage() {
     fetchBookingData();
   }, [bookingId]);
 
-  const handlePayment = async () => {
-    setProcessingPayment(true);
-    setError("");
-
+  const handleConfirmBooking = async () => {
     try {
-      // In a real app, this would integrate with a payment gateway
-      const paymentResponse = await api.post("/payments/initiate", {
-        booking_id: bookingId,
-        payment_method: "razorpay",
-      });
+      setConfirmingBooking(true);
 
-      // Mock payment verification - in reality this would be handled by the payment gateway callback
-      await api.post("/payments/verify", {
-        payment_id: paymentResponse.data.payment_id,
-        transaction_id: paymentResponse.data.transaction_id,
-      });
+      // Update booking status to confirmed
+      await api.patch(`/bookings/${bookingId}/confirm`);
 
-      navigate(`/bookings/${bookingId}?payment=success`);
-    } catch (err) {
-      setError(
-        err.response?.data?.message || "Payment failed. Please try again."
+      toast.success("Booking confirmed successfully!");
+      // Wait a bit before redirecting to ensure the toast is visible
+      setTimeout(() => {
+        navigate("/user/bookings");
+      }, 1500);
+    } catch (error) {
+      console.error("Error confirming booking:", error);
+      toast.error(
+        error.response?.data?.message ||
+          "Failed to confirm booking. Please try again."
       );
     } finally {
-      setProcessingPayment(false);
+      setConfirmingBooking(false);
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div>{error}</div>;
-  if (!booking) return <div>Booking not found</div>;
+  if (loading)
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+
+  if (error)
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-red-50 border-l-4 border-red-500 p-4">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg
+                className="h-5 w-5 text-red-400"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                  clipRule="evenodd"
+                />
+              </svg>
+            </div>
+            <div className="ml-3">
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+  if (!booking)
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="bg-yellow-50 border-l-4 border-yellow-500 p-4">
+          <p className="text-yellow-700">No booking found</p>
+        </div>
+      </div>
+    );
+
+  const totalAmount = booking.total_amount || 0;
+  const seats = booking.seats || [];
+  const eventDate = booking.event_date
+    ? format(new Date(booking.event_date), "EEEE, MMMM d, yyyy")
+    : "Date not available";
+  const eventTime = booking.event_time || "Time not available";
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
-        <div className="p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">
-            Complete Your Booking
-          </h1>
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Booking Details</h1>
+          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+            Booking #{bookingId}
+          </span>
+        </div>
 
-          <div className="border-b border-gray-200 pb-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-900 mb-4">
-              Booking Summary
-            </h2>
-
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Event:</span>
-              <span className="font-medium">{booking.event_title}</span>
-            </div>
-
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Date & Time:</span>
-              <span className="font-medium">
-                {new Date(`${booking.date} ${booking.time}`).toLocaleString()}
-              </span>
-            </div>
-
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Location:</span>
-              <span className="font-medium">{booking.location}</span>
-            </div>
-
-            <div className="flex justify-between mb-2">
-              <span className="text-gray-600">Seats:</span>
-              <span className="font-medium">
-                {booking.seats.map((seat) => seat.seat_number).join(", ")}
-              </span>
-            </div>
-
-            <div className="flex justify-between text-lg font-bold mt-4 pt-4 border-t border-gray-200">
-              <span>Total Amount:</span>
-              <span>₹{booking.total_amount.toFixed(2)}</span>
+        <div className="mb-8">
+          <h2 className="text-xl font-semibold mb-4">Event Information</h2>
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <h3 className="text-lg font-semibold mb-2">
+              {booking.event_title}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-gray-600">Date: {eventDate}</p>
+                <p className="text-gray-600">Time: {eventTime}</p>
+              </div>
+              <div>
+                <p className="text-gray-600">
+                  Location: {booking.event_location}
+                </p>
+              </div>
             </div>
           </div>
 
-          {payment ? (
-            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg
-                    className="h-5 w-5 text-yellow-400"
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
+          <h2 className="text-xl font-semibold mb-4">Selected Seats</h2>
+          {seats.length > 0 ? (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <ul className="space-y-2">
+                {seats.map((seat) => (
+                  <li
+                    key={seat.seat_id}
+                    className="flex justify-between items-center"
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-yellow-700">
-                    {payment.payment_status === "captured"
-                      ? "Your payment was successful and your booking is confirmed!"
-                      : `Payment status: ${payment.payment_status}`}
-                  </p>
+                    <span className="font-medium">
+                      {seat.seat_number} ({seat.seat_type || "Standard"})
+                    </span>
+                    <span>₹{seat.price_paid || 0}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold">Total Amount:</span>
+                  <span className="font-bold text-lg">₹{totalAmount}</span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="mb-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">
-                Payment Method
-              </h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <button className="border rounded-md p-4 flex items-center justify-center hover:border-indigo-500">
-                  <img
-                    src="/images/razorpay-logo.png"
-                    alt="Razorpay"
-                    className="h-8"
-                  />
-                </button>
-                <button className="border rounded-md p-4 flex items-center justify-center hover:border-indigo-500">
-                  <img
-                    src="/images/stripe-logo.png"
-                    alt="Stripe"
-                    className="h-8"
-                  />
-                </button>
-                <button className="border rounded-md p-4 flex items-center justify-center hover:border-indigo-500">
-                  <img
-                    src="/images/paypal-logo.png"
-                    alt="PayPal"
-                    className="h-8"
-                  />
-                </button>
-              </div>
-
-              <div className="bg-gray-50 p-4 rounded-md">
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Subtotal:</span>
-                  <span>₹{booking.total_amount.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between mb-2">
-                  <span className="text-gray-600">Tax:</span>
-                  <span>₹0.00</span>
-                </div>
-                <div className="flex justify-between font-bold text-lg pt-2 border-t border-gray-200">
-                  <span>Total:</span>
-                  <span>₹{booking.total_amount.toFixed(2)}</span>
-                </div>
-              </div>
-            </div>
+            <p>No seat information available</p>
           )}
+        </div>
 
-          <div className="flex justify-end space-x-3">
-            <button
-              onClick={() => navigate("/")}
-              className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-            >
-              Back to Events
-            </button>
-
-            {!payment && (
-              <button
-                onClick={handlePayment}
-                disabled={processingPayment}
-                className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-                  processingPayment ? "opacity-50 cursor-not-allowed" : ""
-                }`}
-              >
-                {processingPayment ? "Processing..." : "Pay Now"}
-              </button>
-            )}
-
-            {payment && (
-              <button
-                onClick={() => navigate(`/bookings/${bookingId}`)}
-                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                View Booking Details
-              </button>
-            )}
-          </div>
+        <div className="flex justify-end space-x-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Back
+          </button>
+          <button
+            onClick={handleConfirmBooking}
+            disabled={confirmingBooking}
+            className={`px-6 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+              confirmingBooking ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
+            {confirmingBooking ? "Confirming..." : "Confirm Booking"}
+          </button>
         </div>
       </div>
     </div>

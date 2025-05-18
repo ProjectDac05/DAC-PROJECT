@@ -10,13 +10,33 @@ export function AuthProvider({ children }) {
     const loadUser = async () => {
       try {
         const token = localStorage.getItem("accessToken");
-        if (token) {
+        const storedUser = localStorage.getItem("user");
+
+        if (token && storedUser) {
+          // Set the token in axios defaults
+          api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+          // Try to get user data from API
           const response = await api.get("/auth/me");
-          setUser(response.data);
+          if (response.data?.data?.user) {
+            setUser(response.data.data.user);
+          } else {
+            // If no user data, use stored user data
+            setUser(JSON.parse(storedUser));
+          }
         }
       } catch (error) {
-        console.error("Failed to load user", error);
-        localStorage.removeItem("accessToken");
+        console.error("Failed to load user:", error);
+        // If API call fails but we have stored user data, use it
+        const storedUser = localStorage.getItem("user");
+        if (storedUser) {
+          setUser(JSON.parse(storedUser));
+        } else {
+          // Clear invalid tokens
+          localStorage.removeItem("accessToken");
+          localStorage.removeItem("user");
+          api.defaults.headers.common.Authorization = "";
+        }
       } finally {
         setLoading(false);
       }
@@ -26,18 +46,40 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (token, userData) => {
-    localStorage.setItem("accessToken", token);
-    setUser(userData);
+    try {
+      // Store token
+      localStorage.setItem("accessToken", token);
+
+      // Set the token in axios defaults
+      api.defaults.headers.common.Authorization = `Bearer ${token}`;
+
+      // Set user state
+      const userState = {
+        id: userData.user_id,
+        name: userData.name,
+        role: userData.role,
+        email: userData.email,
+      };
+      setUser(userState);
+      localStorage.setItem("user", JSON.stringify(userState));
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error;
+    }
   };
 
   const logout = async () => {
     try {
       await api.post("/auth/logout");
     } catch (error) {
-      console.error("Logout error", error);
+      console.error("Logout error:", error);
+    } finally {
+      // Clear storage and state
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("user");
+      api.defaults.headers.common.Authorization = "";
+      setUser(null);
     }
-    localStorage.removeItem("accessToken");
-    setUser(null);
   };
 
   const value = {
@@ -45,6 +87,7 @@ export function AuthProvider({ children }) {
     loading,
     login,
     logout,
+    isAuthenticated: !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
