@@ -8,6 +8,11 @@ const Navbar = ({ user, onLogout }) => {
     navigate("/login");
   };
 
+  const getDisplayName = (user) => {
+    if (!user || !user.name) return "User";
+    return user.name.split(" ")[0];
+  };
+
   return (
     <nav className="bg-white shadow-lg">
       <div className="max-w-6xl mx-auto px-4">
@@ -78,7 +83,7 @@ const Navbar = ({ user, onLogout }) => {
                   }
                   className="py-4 px-2 text-gray-500 hover:text-indigo-500 transition duration-300"
                 >
-                  Hi, {user.name.split(" ")[0]}
+                  Hi, {getDisplayName(user)}
                 </Link>
               </>
             ) : (

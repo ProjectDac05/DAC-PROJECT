@@ -11,6 +11,10 @@ const pool = mysql.createPool({
   connectionLimit: 10,
   queueLimit: 0,
   timezone: "+00:00",
+  enableKeepAlive: true,
+  keepAliveInitialDelay: 0,
+  multipleStatements: true,
+  dateStrings: true, // This will make MySQL return date/time as strings
 });
 
 // Test the connection

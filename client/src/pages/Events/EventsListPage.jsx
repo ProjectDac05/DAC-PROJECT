@@ -59,13 +59,17 @@ export default function EventsListPage() {
         const response = await api.get(`/events?${queryString}`);
         console.log("Events API Response:", response.data);
 
-        if (response.data && Array.isArray(response.data.events)) {
+        if (
+          response.data &&
+          response.data.data &&
+          Array.isArray(response.data.data.events)
+        ) {
           if (filters.page === 1) {
-            setEvents(response.data.events);
+            setEvents(response.data.data.events);
           } else {
-            setEvents((prev) => [...prev, ...response.data.events]);
+            setEvents((prev) => [...prev, ...response.data.data.events]);
           }
-          setHasMore(response.data.events.length === filters.limit);
+          setHasMore(response.data.data.events.length === filters.limit);
         } else {
           console.error("Invalid response format:", response.data);
           setError("Invalid response format from server");

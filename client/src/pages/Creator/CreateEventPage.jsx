@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
@@ -16,17 +16,34 @@ export default function CreateEventPage() {
     end_time: "",
     category_id: "",
     total_seats: 100,
+    capacity: 100,
     price: 0,
     image_url: "",
   });
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await api.get("/categories");
+        setCategories(response.data.data.categories);
+      } catch (err) {
+        setError(err.response?.data?.message || "Failed to fetch categories");
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
       [name]: value,
+      // Update capacity when total_seats changes
+      ...(name === "total_seats" ? { capacity: value } : {}),
     }));
   };
 
@@ -36,10 +53,38 @@ export default function CreateEventPage() {
     setError("");
 
     try {
-      const response = await api.post("/events", formData);
-      navigate(`/creator/events/${response.data.eventId}/seats`);
+      // Create a new object with the form data
+      const eventData = {
+        ...formData,
+        // Convert empty strings to null for optional date/time fields
+        end_date: formData.end_date || null,
+        end_time: formData.end_time || null,
+        // Convert empty strings to null for optional text fields
+        short_description: formData.short_description || null,
+        venue_details: formData.venue_details || null,
+        image_url: formData.image_url || null,
+        // Ensure numeric fields are numbers
+        category_id: parseInt(formData.category_id),
+        total_seats: parseInt(formData.total_seats),
+        capacity: parseInt(formData.total_seats), // Set capacity equal to total_seats
+        price: parseFloat(formData.price),
+      };
+
+      const response = await api.post("/events", eventData);
+
+      // Access the event ID from the correct response structure
+      const eventId = response.data.data.event.event_id;
+
+      if (!eventId) {
+        throw new Error("Failed to get event ID from response");
+      }
+
+      navigate(`/creator/events/${eventId}/seats`);
     } catch (err) {
-      setError(err.response?.data?.message || "Failed to create event");
+      console.error("Error creating event:", err);
+      setError(
+        err.response?.data?.message || err.message || "Failed to create event"
+      );
     } finally {
       setLoading(false);
     }
@@ -78,6 +123,30 @@ export default function CreateEventPage() {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="category_id"
+              className="block text-sm font-medium text-gray-700 mb-1"
+            >
+              Category *
+            </label>
+            <select
+              id="category_id"
+              name="category_id"
+              value={formData.category_id}
+              onChange={handleChange}
+              required
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+            >
+              <option value="">Select a category</option>
+              {categories.map((category) => (
+                <option key={category.category_id} value={category.category_id}>
+                  {category.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>
@@ -185,6 +254,9 @@ export default function CreateEventPage() {
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
             />
+            <p className="mt-1 text-sm text-gray-500">
+              This will also set the event capacity
+            </p>
           </div>
 
           <div>
@@ -281,7 +353,7 @@ export default function CreateEventPage() {
           <button
             type="submit"
             disabled={loading}
-            className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+            className={`px-6 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${
               loading ? "opacity-50 cursor-not-allowed" : ""
             }`}
           >

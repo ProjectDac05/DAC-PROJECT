@@ -11,11 +11,14 @@ const path = require("path");
 
 // Import routes
 const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
 const eventRoutes = require("./routes/eventRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
+const wishlistRoutes = require("./routes/wishlistRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const adminRoutes = require("./routes/adminRoutes");
 const creatorRoutes = require("./routes/creatorRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 
 // Import middlewares
 const errorHandler = require("./middlewares/errorHandler");
@@ -44,7 +47,7 @@ app.use(helmet());
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // increased limit for development
   message: "Too many requests from this IP, please try again later",
 });
 app.use("/api", limiter);
@@ -63,33 +66,10 @@ app.use(hpp());
 // ====================
 
 // Enable Cross-Origin Resource Sharing
-const allowedOrigins =
-  process.env.NODE_ENV === "production"
-    ? process.env.ALLOWED_ORIGINS?.split(",") || []
-    : [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-      ];
-
 app.use(cookieParser());
 app.use(
   cors({
-    origin: (origin, callback) => {
-      if (
-        !origin ||
-        !process.env.NODE_ENV ||
-        process.env.NODE_ENV === "development"
-      ) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.indexOf(origin) === -1) {
-        console.warn(`⚠️  Blocked request from unauthorized origin: ${origin}`);
-        return callback(new Error("Not allowed by CORS"), false);
-      }
-      return callback(null, true);
-    },
+    origin: true, // Allow all origins in development
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [
@@ -129,23 +109,17 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Authentication Routes
+// API Routes
 app.use("/api/auth", authRoutes);
-
-// Event Routes
+app.use("/api/users", userRoutes);
 app.use("/api/events", eventRoutes);
-
-// Booking Routes
 app.use("/api/bookings", bookingRoutes);
-
-// Payment Routes
+app.use("/api/wishlist", wishlistRoutes);
+// Payment routes
 app.use("/api/payments", paymentRoutes);
-
-// Admin Routes
 app.use("/api/admin", adminRoutes);
-
-// Creator Routes
 app.use("/api/creator", creatorRoutes);
+app.use("/api/categories", categoryRoutes);
 
 // Handle 404 routes
 app.all("*", (req, res, next) => {

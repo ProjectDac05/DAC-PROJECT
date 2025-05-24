@@ -8,6 +8,13 @@ class BookingController {
     try {
       const { event_id, seat_ids, total_amount } = req.body;
 
+      console.log("Creating booking with data:", {
+        event_id,
+        seat_ids,
+        total_amount,
+        user_id: req.user.user_id,
+      });
+
       // 1) Check if event exists and is active
       const event = await Event.findById(event_id);
       if (!event || !event.is_active) {
@@ -19,30 +26,43 @@ class BookingController {
         return next(new AppError("Please select at least one seat", 400));
       }
 
-      // 3) Create booking
+      // 3) Validate total_amount
+      if (!total_amount || isNaN(total_amount) || total_amount <= 0) {
+        return next(new AppError("Invalid total amount", 400));
+      }
+
+      // 4) Create booking
       const bookingId = await Booking.create({
         event_id,
         user_id: req.user.user_id,
-        total_amount,
+        total_amount: parseFloat(total_amount),
       });
 
-      // 4) Book the selected seats
+      console.log("Booking created with ID:", bookingId);
+
+      // 5) Book the selected seats
       try {
         await Booking.bookSeats(bookingId, seat_ids);
       } catch (error) {
+        console.error("Error booking seats:", error);
         // If seat booking fails, delete the booking and throw error
         await db.query("DELETE FROM bookings WHERE booking_id = ?", [
           bookingId,
         ]);
         return next(new AppError(error.message || "Failed to book seats", 400));
-      }
-
-      // 5) Update available seats in event
+      } // 6) Update available seats in event
       await Event.update(event_id, {
         available_seats: event.available_seats - seat_ids.length,
+      }); // 7) Create initial payment record
+      await Booking.createPayment({
+        booking_id: bookingId,
+        amount: total_amount,
+        payment_method: "razorpay",
+        transaction_id: null,
+        payment_status: "captured", // Using captured for successful payments
       });
 
-      // 6) Get booking details with seats
+      // 8) Get booking details with seats
       const booking = await Booking.findById(bookingId);
       const bookedSeats = await Booking.getBookedSeats(bookingId);
 
@@ -56,6 +76,7 @@ class BookingController {
         },
       });
     } catch (err) {
+      console.error("Error in createBooking:", err);
       next(err);
     }
   }
@@ -95,28 +116,44 @@ class BookingController {
       next(err);
     }
   }
-
   static async getUserBookings(req, res, next) {
     try {
-      const bookings = await Booking.findByUser(req.user.user_id);
+      console.log("getUserBookings called with:", {
+        user: req.user,
+        headers: req.headers,
+        cookies: req.cookies,
+      });
 
-      // Get seats for each booking
-      const bookingsWithSeats = await Promise.all(
-        bookings.map(async (booking) => {
-          const seats = await Booking.getBookedSeats(booking.booking_id);
-          return { ...booking, seats };
-        })
+      if (!req.user || !req.user.user_id) {
+        console.error("No user ID found in request");
+        return next(new AppError("User not authenticated", 401));
+      }
+
+      // First check if user has any bookings at all
+      const [bookingCount] = await db.query(
+        "SELECT COUNT(*) as count FROM bookings WHERE user_id = ?",
+        [req.user.user_id]
       );
 
+      console.log("Total bookings found:", bookingCount[0].count);
+
+      const bookings = await Booking.findByUser(req.user.user_id);
+      console.log(
+        "Found bookings after processing:",
+        JSON.stringify(bookings, null, 2)
+      );
+
+      // Always return an array, even if empty
       res.status(200).json({
         status: "success",
-        results: bookingsWithSeats.length,
         data: {
-          bookings: bookingsWithSeats,
+          bookings: Array.isArray(bookings) ? bookings : [],
         },
       });
     } catch (err) {
-      next(err);
+      console.error("Error in getUserBookings:", err);
+      console.error("Error stack:", err.stack);
+      return next(new AppError(err.message || "Error fetching bookings", 500));
     }
   }
 
@@ -140,28 +177,98 @@ class BookingController {
         return next(new AppError("Booking is already cancelled", 400));
       }
 
-      // Get booked seats before cancelling
-      const bookedSeats = await Booking.getBookedSeats(req.params.id);
+      // Start transaction
+      await db.query("START TRANSACTION");
 
-      // Update booking status to cancelled
-      await Booking.updateStatus(req.params.id, "cancelled");
+      try {
+        // Get event details and booked seats count
+        const [eventDetails] = await db.query(
+          `SELECT e.event_id, e.available_seats, e.total_seats, 
+           (SELECT COUNT(*) FROM booked_seats WHERE booking_id = ?) as seat_count
+           FROM events e
+           JOIN bookings b ON e.event_id = b.event_id
+           WHERE b.booking_id = ?`,
+          [req.params.id, req.params.id]
+        );
 
-      // Update event available seats
-      const event = await Event.findById(booking.event_id);
-      await Event.update(booking.event_id, {
-        available_seats: event.available_seats + bookedSeats.length,
-      });
+        if (!eventDetails.length) {
+          throw new Error("Event details not found");
+        }
 
-      // Mark seats as available
-      const seatIds = bookedSeats.map((seat) => seat.seat_id);
-      await db.query(
-        "UPDATE seats SET is_booked = FALSE WHERE seat_id IN (?)",
-        [seatIds]
-      );
+        const { available_seats, total_seats, seat_count } = eventDetails[0];
+
+        // Verify that cancelling won't violate the total seats constraint
+        if (available_seats + seat_count > total_seats) {
+          throw new Error(
+            "Cannot cancel booking: would exceed total seats limit"
+          );
+        }
+
+        // Update booking status to cancelled
+        await Booking.updateStatus(req.params.id, "cancelled");
+
+        // Update event available seats
+        await db.query(
+          "UPDATE events SET available_seats = available_seats + ? WHERE event_id = ?",
+          [seat_count, booking.event_id]
+        );
+
+        // Mark seats as available
+        await db.query(
+          `UPDATE seats s
+           JOIN booked_seats bs ON s.seat_id = bs.seat_id
+           SET s.is_booked = FALSE
+           WHERE bs.booking_id = ?`,
+          [req.params.id]
+        );
+
+        // Commit transaction
+        await db.query("COMMIT");
+
+        res.status(200).json({
+          status: "success",
+          message: "Booking cancelled successfully",
+        });
+      } catch (err) {
+        await db.query("ROLLBACK");
+        console.error("Error in cancellation transaction:", err);
+        return next(
+          new AppError(err.message || "Failed to cancel booking", 400)
+        );
+      }
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  static async confirmBooking(req, res, next) {
+    try {
+      const { id } = req.params;
+
+      // Check if booking exists
+      const booking = await Booking.findById(id);
+      if (!booking) {
+        return next(new AppError("No booking found with that ID", 404));
+      }
+
+      // Check if user is the owner
+      if (booking.user_id !== req.user.user_id) {
+        return next(
+          new AppError("You are not authorized to confirm this booking", 403)
+        );
+      }
+
+      // Update booking status to confirmed
+      await Booking.updateStatus(id, "confirmed");
+
+      // Get updated booking details
+      const updatedBooking = await Booking.findById(id);
 
       res.status(200).json({
         status: "success",
-        message: "Booking cancelled successfully",
+        data: {
+          booking: updatedBooking,
+        },
       });
     } catch (err) {
       next(err);

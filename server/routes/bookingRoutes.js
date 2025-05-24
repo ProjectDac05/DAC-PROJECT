@@ -21,5 +21,6 @@ router.patch(
   isBookingOwnerOrAdmin,
   BookingController.cancelBooking
 );
+router.post("/:id/confirm", protect, BookingController.confirmBooking);
 
 module.exports = router;

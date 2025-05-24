@@ -24,21 +24,23 @@ module.exports = {
             401
           )
         );
-      }
-
-      // 2) Verify token
+      } // 2) Verify token
+      console.log("Verifying token:", token);
       const decoded = await promisify(jwt.verify)(
         token,
         process.env.JWT_SECRET || "your-secret-key"
       );
+      console.log("Decoded token:", decoded);
 
       // 3) Check if user still exists
-      const [user] = await db.query(
+      const [rows] = await db.query(
         "SELECT user_id, name, email, role FROM users WHERE user_id = ?",
         [decoded.id]
       );
 
-      if (!user.length) {
+      console.log("User found:", rows[0]);
+
+      if (!rows.length) {
         return next(
           new AppError(
             "The user belonging to this token no longer exists.",
@@ -51,7 +53,7 @@ module.exports = {
       // Add this if you implement password change functionality
 
       // Grant access to protected route
-      req.user = user[0];
+      req.user = rows[0];
       next();
     } catch (err) {
       if (err.name === "JsonWebTokenError") {

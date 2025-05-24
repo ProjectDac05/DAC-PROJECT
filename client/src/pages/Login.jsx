@@ -21,69 +21,69 @@ export default function Login() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log("Form submitted");
-    console.log("Form data:", { email, password: "***" });
 
     setLoading(true);
     setError("");
 
     try {
-      console.log(
-        "Making API request to:",
-        `${api.defaults.baseURL}/auth/login`
-      );
+      // Make the login API request
       const response = await api.post("/auth/login", { email, password });
-      console.log("API Response received:", {
-        status: response.status,
-        headers: response.headers,
-        data: response.data,
-      });
+      console.log("Server response:", response.data);
 
-      const { accessToken, userId, name, role } = response.data;
+      if (
+        !response.data ||
+        !response.data.status ||
+        response.data.status !== "success"
+      ) {
+        throw new Error("Invalid response format from server");
+      }
+
+      const { token, user } = response.data.data;
+
+      if (!token || !user) {
+        throw new Error("Missing token or user data in response");
+      }
+
+      // Map the user data to match expected format
+      const userData = {
+        userId: user.user_id,
+        name: user.name || "User",
+        role: user.role,
+        email: user.email,
+      };
 
       // Use the auth context login function
-      console.log("Calling auth context login with:", { userId, name, role });
-      await login(accessToken, { userId, name, role });
+      await login(token, userData);
 
-      // Set token for immediate API calls
-      api.defaults.headers.common.Authorization = `Bearer ${accessToken}`;
+      // Default role-based redirect
+      const dashboardPath =
+        userData.role === "admin"
+          ? "/admin/dashboard"
+          : userData.role === "organizer"
+          ? "/creator/dashboard"
+          : "/user/dashboard";
 
       // Check for saved booking state
       const savedBooking = localStorage.getItem("bookingRedirect");
       if (savedBooking && redirectPath?.startsWith("/events/")) {
-        // Clear saved state
         localStorage.removeItem("bookingRedirect");
-        // Redirect back to event page
         navigate(redirectPath);
         return;
       }
 
-      // Default role-based redirect
-      const dashboardPath =
-        role === "admin"
-          ? "/admin/dashboard"
-          : role === "organizer"
-          ? "/creator/dashboard"
-          : "/user/dashboard";
-
       // Navigate to redirect path or default dashboard
-      console.log("Redirecting to:", redirectPath || dashboardPath);
       navigate(redirectPath || dashboardPath);
     } catch (err) {
       console.error("Login error:", {
         message: err.message,
         status: err.response?.status,
-        statusText: err.response?.statusText,
         data: err.response?.data,
-        config: {
-          url: err.config?.url,
-          method: err.config?.method,
-          baseURL: err.config?.baseURL,
-          headers: err.config?.headers,
-        },
       });
 
       setError(
-        err.response?.data?.message || "Login failed. Please try again."
+        err.response?.data?.message ||
+          err.message ||
+          "Login failed. Please try again."
       );
     } finally {
       setLoading(false);

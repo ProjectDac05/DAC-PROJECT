@@ -57,6 +57,10 @@ class AuthController {
 
       // 2) Check if user exists and password is correct
       const user = await User.findByEmail(email);
+      console.log("User data from database:", {
+        ...user,
+        password: "[REDACTED]",
+      });
 
       if (!user || !(await User.comparePassword(password, user.password))) {
         // Increment failed login attempts
@@ -97,13 +101,21 @@ class AuthController {
         maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       });
 
-      // Remove password from response
-      delete user.password;
+      // Remove sensitive data from response
+      const userData = {
+        user_id: user.user_id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      };
+
+      console.log("Sending user data to client:", userData);
 
       res.status(200).json({
         status: "success",
         data: {
-          user,
+          user: userData,
           token,
         },
       });

@@ -4,11 +4,14 @@ import api from "../../services/api";
 import { useAuth } from "../../context/useAuth";
 
 export default function AdminDashboard() {
+  console.log("AdminDashboard component rendering");
   const { user } = useAuth();
+  console.log("User from auth context:", user);
+
   const [stats, setStats] = useState({
-    users_count: 0,
-    events_count: 0,
-    bookings_count: 0,
+    users: 0,
+    events: 0,
+    bookings: 0,
     revenue: 0,
   });
   const [recentBookings, setRecentBookings] = useState([]);
@@ -16,12 +19,28 @@ export default function AdminDashboard() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    console.log("AdminDashboard useEffect running");
     const fetchStats = async () => {
       try {
-        const response = await api.get("/admin/stats");
-        setStats(response.data.stats);
-        setRecentBookings(response.data.recent_bookings);
+        console.log("Fetching dashboard stats...");
+        const response = await api.get("/admin/dashboard");
+        console.log("Dashboard API response:", response.data);
+
+        if (response.data && response.data.data) {
+          console.log("Setting stats:", response.data.data.stats);
+          console.log(
+            "Setting recent bookings:",
+            response.data.data.recentBookings
+          );
+          setStats(response.data.data.stats);
+          setRecentBookings(response.data.data.recentBookings || []);
+        } else {
+          console.error("Invalid response format:", response.data);
+          throw new Error("Invalid response format");
+        }
       } catch (err) {
+        console.error("Dashboard error:", err);
+        console.error("Error response:", err.response);
         setError(err.response?.data?.message || "Failed to fetch statistics");
       } finally {
         setLoading(false);
@@ -31,7 +50,15 @@ export default function AdminDashboard() {
     fetchStats();
   }, []);
 
+  console.log("Current component state:", {
+    loading,
+    error,
+    stats,
+    recentBookings,
+  });
+
   if (loading) {
+    console.log("Rendering loading state");
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
@@ -39,6 +66,7 @@ export default function AdminDashboard() {
     );
   }
 
+  console.log("Rendering dashboard content");
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
@@ -60,7 +88,7 @@ export default function AdminDashboard() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <div className="bg-blue-50 p-6 rounded-lg">
             <h3 className="font-medium text-blue-800">Total Users</h3>
-            <p className="text-3xl font-bold mt-2">{stats.users_count}</p>
+            <p className="text-3xl font-bold mt-2">{stats.users}</p>
             <Link
               to="/admin/users"
               className="text-blue-600 hover:text-blue-800 text-sm mt-2 inline-block"
@@ -71,7 +99,7 @@ export default function AdminDashboard() {
 
           <div className="bg-green-50 p-6 rounded-lg">
             <h3 className="font-medium text-green-800">Total Events</h3>
-            <p className="text-3xl font-bold mt-2">{stats.events_count}</p>
+            <p className="text-3xl font-bold mt-2">{stats.events}</p>
             <Link
               to="/admin/events"
               className="text-green-600 hover:text-green-800 text-sm mt-2 inline-block"
@@ -82,7 +110,7 @@ export default function AdminDashboard() {
 
           <div className="bg-purple-50 p-6 rounded-lg">
             <h3 className="font-medium text-purple-800">Total Bookings</h3>
-            <p className="text-3xl font-bold mt-2">{stats.bookings_count}</p>
+            <p className="text-3xl font-bold mt-2">{stats.bookings}</p>
             <Link
               to="/admin/bookings"
               className="text-purple-600 hover:text-purple-800 text-sm mt-2 inline-block"

@@ -1,8 +1,8 @@
 // import { useAuth } from "../context/authContext";
 import { useAuth } from "../context/useAuth";
-import { Navigate, useLocation, Outlet } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 
-export default function ProtectedRoute({ allowedRoles }) {
+export default function ProtectedRoute({ children, allowedRoles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
 
@@ -18,5 +18,5 @@ export default function ProtectedRoute({ allowedRoles }) {
     return <Navigate to="/" replace />;
   }
 
-  return <Outlet />;
+  return children;
 }

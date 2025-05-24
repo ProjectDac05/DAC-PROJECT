@@ -5,16 +5,18 @@ const { JWT_SECRET, JWT_EXPIRES_IN, REFRESH_TOKEN_EXPIRES_IN } = process.env;
 
 class User {
   static async findByEmail(email) {
-    const [rows] = await db.query("SELECT * FROM users WHERE email = ?", [
-      email,
-    ]);
+    const [rows] = await db.query(
+      "SELECT user_id, name, email, password, phone, role, is_active, failed_login_attempts, lockout_time FROM users WHERE email = ?",
+      [email]
+    );
     return rows[0];
   }
 
   static async findById(id) {
-    const [rows] = await db.query("SELECT * FROM users WHERE user_id = ?", [
-      id,
-    ]);
+    const [rows] = await db.query(
+      "SELECT user_id, name, email, password, phone, role, is_active, failed_login_attempts, lockout_time FROM users WHERE user_id = ?",
+      [id]
+    );
     return rows[0];
   }
 

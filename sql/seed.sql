@@ -90,24 +90,6 @@ FROM (SELECT 1 + tens.num + hundreds.num * 10 as num
            (SELECT 0 as num UNION SELECT 10 UNION SELECT 20 UNION SELECT 30 UNION SELECT 40 UNION SELECT 50) hundreds
       WHERE 1 + tens.num + hundreds.num * 10 <= 50) numbers;
 
--- Insert sample bookings
-INSERT INTO bookings (event_id, user_id, status, total_amount) VALUES
-(1, 4, 'confirmed', 10000.00),
-(2, 5, 'confirmed', 7000.00);
-
--- Insert booked seats (using first few seats from each event)
-INSERT INTO booked_seats (booking_id, seat_id, price_paid) 
-SELECT b.booking_id, s.seat_id, e.price * s.price_multiplier as price_paid
-FROM bookings b
-JOIN events e ON b.event_id = e.event_id
-JOIN seats s ON e.event_id = s.event_id
-WHERE (b.booking_id = 1 AND s.seat_number IN ('VIP-001', 'VIP-002'))
-   OR (b.booking_id = 2 AND s.seat_number IN ('P-001', 'P-002'));
-
--- Insert payments
-INSERT INTO payments (booking_id, amount, payment_method, payment_status, transaction_id) VALUES
-(1, 10000.00, 'razorpay', 'captured', 'pay_test123'),
-(2, 7000.00, 'stripe', 'captured', 'ch_test456');
 
 -- Insert event images
 INSERT INTO event_images (event_id, image_url, is_primary, display_order) VALUES
@@ -117,3 +99,26 @@ INSERT INTO event_images (event_id, image_url, is_primary, display_order) VALUES
 (2, 'https://images.unsplash.com/photo-1531415074968-036ba1b575da?w=500', FALSE, 2),
 (3, 'https://images.unsplash.com/photo-1507676184212-d03ab07a01bf?w=500', TRUE, 1),
 (3, 'https://images.unsplash.com/photo-1460723237483-7a6dc9d0b212?w=500', FALSE, 2);
+
+
+
+
+-- Insert sample bookings
+-- INSERT INTO bookings (event_id, user_id, status, total_amount) VALUES
+-- (1, 4, 'confirmed', 10000.00),
+-- (2, 5, 'confirmed', 7000.00);
+
+-- Insert booked seats (using first few seats from each event)
+-- INSERT INTO booked_seats (booking_id, seat_id, price_paid) 
+-- SELECT b.booking_id, s.seat_id, e.price * s.price_multiplier as price_paid
+-- FROM bookings b
+-- JOIN events e ON b.event_id = e.event_id
+-- JOIN seats s ON e.event_id = s.event_id
+-- WHERE (b.booking_id = 1 AND s.seat_number IN ('VIP-001', 'VIP-002'))
+--    OR (b.booking_id = 2 AND s.seat_number IN ('P-001', 'P-002'));
+
+-- Insert payments
+-- INSERT INTO payments (booking_id, amount, payment_method, payment_status, transaction_id) VALUES
+-- (1, 10000.00, 'razorpay', 'captured', 'pay_test123'),
+-- (2, 7000.00, 'stripe', 'captured', 'ch_test456');
+

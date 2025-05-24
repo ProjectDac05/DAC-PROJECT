@@ -10,6 +10,7 @@ export default function CreatorDashboard() {
     totalBookings: 0,
     totalRevenue: 0,
   });
+  const [recentEvents, setRecentEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -17,7 +18,8 @@ export default function CreatorDashboard() {
     const fetchStats = async () => {
       try {
         const response = await api.get("/creator/stats");
-        setStats(response.data);
+        setStats(response.data.data.stats);
+        setRecentEvents(response.data.data.upcomingEvents || []);
       } catch (err) {
         setError(err.response?.data?.message || "Failed to fetch statistics");
       } finally {
@@ -73,18 +75,18 @@ export default function CreatorDashboard() {
             <h3 className="font-medium text-yellow-800">Total Revenue</h3>
             <p className="text-3xl font-bold mt-2">
               ₹
-              {stats.totalRevenue.toLocaleString("en-IN", {
+              {Number(stats.totalRevenue).toLocaleString("en-IN", {
                 maximumFractionDigits: 2,
               })}
             </p>
           </div>
         </div>
 
-        {stats.recentEvents && stats.recentEvents.length > 0 && (
+        {recentEvents && recentEvents.length > 0 && (
           <div className="mt-8">
             <h3 className="text-lg font-semibold mb-4">Recent Events</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {stats.recentEvents.map((event) => (
+              {recentEvents.map((event) => (
                 <Link
                   key={event.event_id}
                   to={`/creator/events/${event.event_id}`}
@@ -96,7 +98,8 @@ export default function CreatorDashboard() {
                   </p>
                   <div className="flex justify-between items-center mt-2">
                     <span className="text-sm text-gray-500">
-                      {event.booked_seats}/{event.total_seats} seats booked
+                      {event.booking_count || 0}/{event.total_seats} seats
+                      booked
                     </span>
                     <span className="text-sm font-medium text-indigo-600">
                       View Details →

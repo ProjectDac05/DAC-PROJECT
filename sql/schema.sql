@@ -128,6 +128,21 @@ CREATE TABLE event_images (
     FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE
 ) ENGINE=InnoDB;
 
+-- Wishlist table
+CREATE TABLE wishlists (
+    wishlist_id INT PRIMARY KEY AUTO_INCREMENT,
+    user_id INT NOT NULL,
+    event_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (event_id) REFERENCES events(event_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_user_event (user_id, event_id)
+) ENGINE=InnoDB;
+
+-- Create index for wishlist queries
+CREATE INDEX idx_wishlist_user ON wishlists(user_id);
+CREATE INDEX idx_wishlist_event ON wishlists(event_id);
+
 -- Refresh tokens table with enhanced security
 CREATE TABLE refresh_tokens (
     token_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -158,26 +173,47 @@ CREATE INDEX idx_token_user ON refresh_tokens(user_id);
 
 -- Create trigger to update available seats
 DELIMITER //
-CREATE TRIGGER after_booking_status_update
-AFTER UPDATE ON bookings
+
+CREATE TRIGGER before_booking_status_update
+BEFORE UPDATE ON bookings
 FOR EACH ROW
 BEGIN
+    DECLARE seat_count INT;
+    DECLARE current_available INT;
+    DECLARE total_seats INT;
+    
+    -- Get the number of seats in this booking
+    SELECT COUNT(*) INTO seat_count
+    FROM booked_seats
+    WHERE booking_id = NEW.booking_id;
+    
+    -- Get current available seats and total seats
+    SELECT available_seats, total_seats INTO current_available, total_seats
+    FROM events
+    WHERE event_id = NEW.event_id;
+    
     IF NEW.status != OLD.status THEN
-        IF NEW.status = 'confirmed' THEN
-            UPDATE events e
-            SET e.available_seats = e.available_seats - (
-                SELECT COUNT(*) FROM booked_seats bs
-                WHERE bs.booking_id = NEW.booking_id
-            )
-            WHERE e.event_id = NEW.event_id;
-        ELSEIF NEW.status = 'cancelled' AND OLD.status = 'confirmed' THEN
-            UPDATE events e
-            SET e.available_seats = e.available_seats + (
-                SELECT COUNT(*) FROM booked_seats bs
-                WHERE bs.booking_id = NEW.booking_id
-            )
-            WHERE e.event_id = NEW.event_id;
+        -- When a booking is confirmed
+        IF NEW.status = 'confirmed' AND OLD.status IN ('pending', 'cancelled') THEN
+            -- Check if we have enough seats
+            IF current_available < seat_count THEN
+                SIGNAL SQLSTATE '45000'
+                SET MESSAGE_TEXT = 'Not enough available seats';
+            END IF;
+            -- Update available seats (decrease)
+            UPDATE events 
+            SET available_seats = available_seats - seat_count
+            WHERE event_id = NEW.event_id;
+            
+        -- When a booking is cancelled
+        ELSEIF NEW.status = 'cancelled' AND OLD.status IN ('confirmed', 'pending') THEN
+            -- Update available seats (increase)
+            UPDATE events 
+            SET available_seats = available_seats + seat_count
+            WHERE event_id = NEW.event_id
+            AND (available_seats + seat_count) <= total_seats;
         END IF;
     END IF;
-END//
+END //
+
 DELIMITER ;
